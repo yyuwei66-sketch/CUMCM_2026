@@ -1,40 +1,164 @@
-"""Q1 template export and independent saved-XLSX validation (standard library only).
+"""CUMCM 2026 C题第一问：单文件最终运行版。
 
-Default entry point: python q1/run_q1.py
-Saved-file check and regression tests: python q1/run_q1.py --verify-only --self-test
-The optional low-level CSV CLI remains available for external callers.
+功能：
+1. 读取 q1_typical_day.csv 与 parameters.json；
+2. 求解最优购电/储能调度；
+3. 检查能量平衡、储能状态、功率边界等物理约束；
+4. 直接按官方 result1.xlsx 模板生成最终 q1/results/result1.xlsx；
+5. 保存后重新读取 Excel，独立校验最终结果。
 
-The input samples represent the preceding 10-minute interval. The original
-template spans 00:10 today to 00:10 tomorrow. Its last interval uses a periodic
-extension of this typical-day plan. This is a documented modeling convention,
-not an official correction or a forecast of an unknown next day.
-After integration, call export_result() with in-memory records to avoid CSVs.
+不生成图片，不生成中间 CSV，不生成 Markdown/JSON 报告。
+
+默认运行：
+    python q1.py
+
+可选严格 MILP：
+    python q1.py --solver milp
 """
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import math
-from pathlib import Path
 import posixpath
 import re
 import tempfile
+import time
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from zipfile import ZipFile
+
+import numpy as np
+import pandas as pd
+from scipy.optimize import Bounds, LinearConstraint, linprog, milp
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+# 兼容 q1.py 放在 q1/ 或项目根目录两种情况。
+if (SCRIPT_DIR / 'input' / 'q1_typical_day.csv').exists():
+    Q1_DIR = SCRIPT_DIR
+elif (SCRIPT_DIR / 'q1' / 'input' / 'q1_typical_day.csv').exists():
+    Q1_DIR = SCRIPT_DIR / 'q1'
+else:
+    Q1_DIR = SCRIPT_DIR
+PROJECT_ROOT = Q1_DIR.parent
 
 NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 TAG = lambda name: '{' + NS + '}' + name
 SHEETS = ['计划购电量', '充放电量']
-CONVENTION = ('采样值用于此前10分钟区间；保留原模板标签并按时间匹配。'
-              '模板次日00:00–00:10按典型日计划周期延拓，等于本日00:00–00:10。'
-              '此为建模约定，并非赛事官方确认。')
+CONVENTION = (
+    '采样值用于此前10分钟区间；保留原模板标签并按时间匹配。'
+    '模板次日00:00–00:10按典型日计划周期延拓，等于本日00:00–00:10。'
+    '此为建模约定，并非赛事官方确认。'
+)
 
 
-def require(ok, message):
-    if not bool(ok):
+def require(condition, message):
+    if not bool(condition):
         raise ValueError(message)
+
+
+def solve_dispatch(price, load, pv, cfg, solver='auto'):
+    """All three arrays contain price (yuan/kWh), load and PV energies (kWh).
+
+    Continuous vector ordering: g[0:n], c[0:n], d[0:n], w[0:n], E[0:n+1].
+    Strict MILP appends binary charge-mode z[0:n].
+    """
+    price, load, pv = [np.asarray(v, dtype=float) for v in (price, load, pv)]
+    n = len(price)
+    require(n > 0 and len(load) == n and len(pv) == n, 'Input lengths differ or are empty')
+    require(np.isfinite(np.r_[price, load, pv]).all(), 'Nonfinite input')
+    require((price > 0).all() and (load >= 0).all() and (pv >= 0).all(), 'This Q1 solver expects positive prices and nonnegative load/PV')
+    require(solver in ('auto', 'milp'), 'Unknown solver mode')
+    ec, ed = cfg['charge_efficiency'], cfg['discharge_efficiency']
+    require(0 < ec <= 1 and 0 < ed <= 1, 'Efficiencies must lie in (0,1]')
+    lo, hi = cfg['storage_min_kwh'], cfg['storage_max_kwh']
+    e0, en = cfg['initial_storage_kwh'], cfg['terminal_storage_kwh']
+    require(0 <= lo <= e0 <= hi and lo <= en <= hi, 'Invalid storage boundaries')
+    require(cfg['interval_minutes'] > 0, 'Invalid interval duration')
+    require(not cfg['allow_grid_export'], 'Grid export is not implemented; do not silently change the model')
+    mc = cfg['max_charge_power_kw'] * cfg['interval_minutes'] / 60
+    md = cfg['max_discharge_power_kw'] * cfg['interval_minutes'] / 60
+    require(mc >= 0 and md >= 0, 'Negative power limit')
+    count = 5 * n + 1
+    objective = np.zeros(count)
+    objective[:n] = price
+    eq = np.zeros((2 * n, count))
+    rhs = np.zeros(2 * n)
+    for t in range(n):
+        # g + PV + d = load + c + w
+        eq[t, t], eq[t, n+t], eq[t, 2*n+t], eq[t, 3*n+t] = 1, -1, 1, -1
+        rhs[t] = load[t] - pv[t]
+        # E[t+1] - E[t] - ec*c + d/ed = 0
+        eq[n+t, 4*n+t+1], eq[n+t, 4*n+t] = 1, -1
+        eq[n+t, n+t], eq[n+t, 2*n+t] = -ec, 1/ed
+    bounds = ([(0, None)] * n + [(0, mc)] * n + [(0, md)] * n
+              + [(0, float(v) if cfg['allow_pv_curtailment'] else 0) for v in pv]
+              + [(lo, hi)] * (n+1))
+    bounds[4*n], bounds[5*n] = (e0, e0), (en, en)
+    started = time.perf_counter()
+    relaxed = linprog(objective, A_eq=eq, b_eq=rhs, bounds=bounds, method='highs')
+    require(relaxed.success, 'LP failed: ' + relaxed.message)
+    tol = cfg['physical_tolerance']
+    overlap = (relaxed.x[n:2*n] > tol) & (relaxed.x[2*n:3*n] > tol)
+    if solver == 'auto' and not overlap.any():
+        x = relaxed.x
+        proof = 'LP optimum satisfies charge/discharge exclusivity; hence it also attains the MILP optimum within solver tolerance.'
+        used = 'HiGHS LP; exclusivity verified'
+        gap = 0.0
+    else:
+        full_obj = np.r_[objective, np.zeros(n)]
+        lower = np.array([b[0] for b in bounds] + [0] * n)
+        upper = np.array([np.inf if b[1] is None else b[1] for b in bounds] + [1] * n)
+        full_eq = np.pad(eq, ((0,0), (0,n)))
+        modes = np.zeros((2*n, count+n))
+        for t in range(n):
+            modes[t, n+t], modes[t, count+t] = 1, -mc
+            modes[n+t, 2*n+t], modes[n+t, count+t] = 1, md
+        result = milp(full_obj, integrality=np.r_[np.zeros(count), np.ones(n)],
+                      bounds=Bounds(lower, upper),
+                      constraints=[LinearConstraint(full_eq, rhs, rhs),
+                                   LinearConstraint(modes, np.full(2*n, -np.inf), np.r_[np.zeros(n), np.full(n, md)])],
+                      options={'mip_rel_gap': 1e-9})
+        require(result.success, 'MILP failed: ' + result.message)
+        x = result.x[:count]
+        used = 'HiGHS MILP'
+        gap = float(result.mip_gap)
+        proof = 'MILP solver reports optimality at the configured relative gap tolerance.'
+    return {'grid': x[:n], 'charge': x[n:2*n], 'discharge': x[2*n:3*n],
+            'curtailment': x[3*n:4*n], 'storage': x[4*n:],
+            'cost': float(objective @ x), 'lp_lower_bound': float(relaxed.fun),
+            'solver': used, 'mip_gap': gap, 'optimality_basis': proof,
+            'elapsed_seconds': time.perf_counter() - started}
+
+
+def clock(minutes):
+    return f'{int(minutes)//60:02d}:{int(minutes)%60:02d}'
+
+
+def check_solution(solution, price, load, pv, cfg):
+    g, c, d, w, e = [solution[k] for k in ('grid', 'charge', 'discharge', 'curtailment', 'storage')]
+    tol = cfg['physical_tolerance']
+    ec, ed = cfg['charge_efficiency'], cfg['discharge_efficiency']
+    duration = cfg['interval_minutes']/60
+    balance = g + pv + d - load - c - w
+    evolution = e[1:] - e[:-1] - ec*c + d/ed
+    violations = {
+        'balance_max_residual_kwh': float(np.max(abs(balance))),
+        'storage_update_max_residual_kwh': float(np.max(abs(evolution))),
+        'nonnegativity_violation_kwh': float(max(0, -np.min(np.r_[g,c,d,w]))),
+        'curtailment_upper_violation_kwh': float(max(0, np.max(w-pv))),
+        'storage_bound_violation_kwh': float(max(0, cfg['storage_min_kwh']-e.min(), e.max()-cfg['storage_max_kwh'])),
+        'power_bound_violation_kw': float(max(0, c.max()/duration-cfg['max_charge_power_kw'], d.max()/duration-cfg['max_discharge_power_kw'])),
+        'initial_storage_error_kwh': float(abs(e[0]-cfg['initial_storage_kwh'])),
+        'terminal_storage_error_kwh': float(abs(e[-1]-cfg['terminal_storage_kwh'])),
+        'simultaneous_charge_discharge_slots': int(((c > tol) & (d > tol)).sum()),
+        'cost_recalculation_error_yuan': float(abs(price@g-solution['cost'])),
+    }
+    require(all(v <= tol for v in violations.values()), 'Physical check failed: ' + str(violations))
+    if not cfg['allow_pv_curtailment']:
+        require(np.max(abs(w)) <= tol, 'Curtailment forbidden by configuration')
+    return violations
 
 
 def number(value, label):
@@ -66,11 +190,6 @@ def interval(label):
     start, end = map(minute, parts)
     require(end > start, f'Nonpositive interval: {label!r}')
     return start, end
-
-
-def load_csv(path):
-    with Path(path).open(encoding='utf-8-sig', newline='') as stream:
-        return list(csv.DictReader(stream))
 
 
 def workbook_parts(path):
@@ -316,82 +435,115 @@ def export_result(template, output, dispatch, source, cfg, *, accept_periodic_te
                         accept_periodic_template=accept_periodic_template)
 
 
-def regression_checks(output, template, dispatch, source, cfg):
-    """Reject former row-order export and corrupt saved files; leave no artifacts."""
-    import copy
-    outcomes = {}
+def build_dispatch_records(source: pd.DataFrame, solution: dict):
+    """Convert the optimizer result to the records required by result1.xlsx export.
 
-    def reject(name, operation):
-        try:
-            operation()
-        except (ValueError, KeyError) as exc:
-            outcomes[name] = {'status':'PASS', 'rejection':str(exc)}
-        else:
-            raise AssertionError('Invalid sample accepted: '+name)
+    Records stay in memory: no intermediate CSV files are written.
+    """
+    price = source.price_yuan_per_kwh.to_numpy(dtype=float)
+    load = source.load_kw.to_numpy(dtype=float) / 6
+    pv = source.pv_forecast_kw.to_numpy(dtype=float) / 6
 
-    def verify(path, d=dispatch, s=source, c=cfg):
-        return verify_saved(path,template,d,s,c,accept_periodic_template=True)
+    records = []
+    for i in range(len(source)):
+        records.append({
+            'slot': int(source.iloc[i]['slot']),
+            'interval_start': clock(int(source.iloc[i]['interval_start_minute'])),
+            'interval_end': clock(int(source.iloc[i]['interval_end_minute'])),
+            'price_yuan_per_kwh': float(price[i]),
+            'load_kwh': float(load[i]),
+            'pv_kwh': float(pv[i]),
+            'grid_kwh': float(solution['grid'][i]),
+            'charge_kwh': float(solution['charge'][i]),
+            'discharge_kwh': float(solution['discharge'][i]),
+            'curtailment_kwh': float(solution['curtailment'][i]),
+            'storage_start_kwh': float(solution['storage'][i]),
+            'storage_end_kwh': float(solution['storage'][i + 1]),
+            'purchase_cost_yuan': float(price[i] * solution['grid'][i]),
+        })
+    return records
 
-    verify(output)
-    reject('empty_template', lambda: verify(template))
-    reject('periodic_convention_required', lambda: verify_saved(output,template,dispatch,source,cfg))
-    with tempfile.TemporaryDirectory(prefix='q1_submission_test_') as directory:
-        parts = workbook_parts(output)
-        sheet_path = parts[SHEETS[0]]['path']
-        def bad_workbook(name, replacements):
-            xml = copy.deepcopy(parts[SHEETS[0]]['xml'])
-            cells = {c.get('r'):c for c in xml.iter(TAG('c'))}
-            for addr,(kind,value,formula) in replacements.items():
-                cell = cells[addr]
-                for child in list(cell): cell.remove(child)
-                cell.set('t',kind)
-                if formula: ET.SubElement(cell,TAG('f')).text = formula
-                ET.SubElement(cell,TAG('v')).text = str(value)
-            path = Path(directory)/(name+'.xlsx')
-            with ZipFile(output) as original, ZipFile(path,'w') as dest:
-                for entry in original.infolist():
-                    dest.writestr(entry,ET.tostring(xml,encoding='utf-8') if entry.filename == sheet_path else original.read(entry.filename))
-            return path
-        old_order = bad_workbook('old_row_order',{
-            f'B{i+2}':('n',row['grid_kwh'],None) for i,row in enumerate(dispatch)})
-        reject('old_row_order',lambda: verify(old_order))
-        for name,replacements in {
-            'numeric_text':{'B2':('str',dispatch[1]['grid_kwh'],None)},
-            'cached_formula':{'B2':('n',dispatch[1]['grid_kwh'],'1+1')},
-            'nonfinite':{'B2':('n','NaN',None)},
-            'changed_label':{'A2':('str','0:00-0:10',None)},
-        }.items():
-            path = bad_workbook(name,replacements)
-            reject(name,lambda: verify(path))
-    wrong_source = copy.deepcopy(source)
-    wrong_source[0]['price_yuan_per_kwh'] = float(source[0]['price_yuan_per_kwh'])+0.01
-    reject('changed_source_price',lambda: verify(output,s=wrong_source))
-    missing = copy.deepcopy(dispatch)
-    del missing[0]['pv_kwh']
-    reject('missing_dispatch_field',lambda: verify(output,d=missing))
-    wrong_cfg = dict(cfg, charge_efficiency=float(cfg['charge_efficiency'])*0.99)
-    reject('stale_configuration',lambda: verify(output,c=wrong_cfg))
-    require(not Path(directory).exists(),'Temporary regression artifacts were not removed')
-    return outcomes
+
+def solve_from_input(input_path: Path, parameters_path: Path, solver: str):
+    cfg = json.loads(parameters_path.read_text(encoding='utf-8-sig'))
+    source = pd.read_csv(input_path, float_precision='round_trip')
+    require(len(source) == 144 and cfg['interval_minutes'] == 10,
+            'This runner expects one full day in 10-minute intervals')
+    require(np.array_equal(source.interval_start_minute, np.arange(0, 1440, 10)),
+            'Unexpected time mapping')
+    require(np.array_equal(source.interval_end_minute, np.arange(10, 1441, 10)),
+            'Unexpected end-time mapping')
+
+    price = source.price_yuan_per_kwh.to_numpy()
+    load = source.load_kw.to_numpy() / 6
+    pv = source.pv_forecast_kw.to_numpy() / 6
+    solution = solve_dispatch(price, load, pv, cfg, solver)
+    checks = check_solution(solution, price, load, pv, cfg)
+    return cfg, source, solution, checks
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for arg in ['template','dispatch','input','parameters','output']:
-        parser.add_argument('--'+arg, required=True, type=Path)
-    parser.add_argument('--accept-periodic-template',action='store_true',help=CONVENTION)
-    parser.add_argument('--verify-only',action='store_true',help='Read and verify an already saved Excel without changing it')
+    parser.add_argument('--solver', choices=['auto', 'milp'], default='auto')
+    parser.add_argument('--input', type=Path, default=Q1_DIR / 'input' / 'q1_typical_day.csv')
+    parser.add_argument('--parameters', type=Path, default=Q1_DIR / 'parameters.json')
+    parser.add_argument('--template', type=Path,
+                        default=PROJECT_ROOT / 'Data_preprocessed' / 'templates' / 'result1.xlsx')
+    parser.add_argument('--output', type=Path, default=Q1_DIR / 'results' / 'result1.xlsx')
     args = parser.parse_args()
-    cfg = json.loads(args.parameters.read_text(encoding='utf-8-sig'))
-    dispatch,source = load_csv(args.dispatch),load_csv(args.input)
-    operation = verify_saved if args.verify_only else export_result
-    if args.verify_only:
-        result = operation(args.output,args.template,dispatch,source,cfg,
-                           accept_periodic_template=args.accept_periodic_template)
-    else:
-        result = operation(args.template,args.output,dispatch,source,cfg,
-                           accept_periodic_template=args.accept_periodic_template)
-    print(json.dumps(result,ensure_ascii=False,indent=2))
+
+    input_path = args.input.resolve()
+    parameters_path = args.parameters.resolve()
+    template_path = args.template.resolve()
+    output_path = args.output.resolve()
+
+    for path, label in [
+        (input_path, 'input'),
+        (parameters_path, 'parameters'),
+        (template_path, 'template'),
+    ]:
+        require(path.exists(), f'Missing {label} file: {path}')
+
+    # 1) Solve Q1 and check all physical constraints.
+    cfg, source, solution, _checks = solve_from_input(
+        input_path, parameters_path, args.solver
+    )
+
+    # 2) Keep dispatch in memory; do not write intermediate CSVs.
+    dispatch_records = build_dispatch_records(source, solution)
+    source_records = source.to_dict(orient='records')
+
+    # 3) Fill the official template and independently verify the SAVED workbook.
+    validation = export_result(
+        template_path,
+        output_path,
+        dispatch_records,
+        source_records,
+        cfg,
+        accept_periodic_template=True,
+    )
+
+    # 4) Console-only summary. The only generated file is result1.xlsx.
+    price = source.price_yuan_per_kwh.to_numpy(dtype=float)
+    load = source.load_kw.to_numpy(dtype=float) / 6
+    pv = source.pv_forecast_kw.to_numpy(dtype=float) / 6
+    baseline_grid = np.maximum(load - pv, 0)
+    baseline_cost = float(price @ baseline_grid)
+    savings = baseline_cost - solution['cost']
+    savings_percent = 100 * savings / baseline_cost if baseline_cost else 0.0
+
+    print('=' * 60)
+    print('Q1 COMPLETED: PASS')
+    print(f'Solver: {solution["solver"]}')
+    print(f'Grid purchase: {solution["grid"].sum():.4f} kWh')
+    print(f'Purchase cost: {solution["cost"]:.4f} yuan')
+    print(f'Baseline cost: {baseline_cost:.4f} yuan')
+    print(f'Savings: {savings:.4f} yuan ({savings_percent:.4f}%)')
+    print(f'Initial / terminal storage: '
+          f'{solution["storage"][0]:.4f} / {solution["storage"][-1]:.4f} kWh')
+    print(f'Saved-XLSX validation: {validation["status"]}')
+    print(f'Output: {output_path}')
+    print('=' * 60)
 
 
 if __name__ == '__main__':
