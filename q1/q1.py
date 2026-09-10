@@ -1,7 +1,7 @@
 """CUMCM 2026 C题第一问：单文件最终运行版。
 
 功能：
-1. 读取 q1_typical_day.csv 与 parameters.json；
+1. 读取 q1_typical_day.csv；模型参数已内置在本文件中；
 2. 求解最优购电/储能调度；
 3. 检查能量平衡、储能状态、功率边界等物理约束；
 4. 直接按官方 result1.xlsx 模板生成最终 q1/results/result1.xlsx；
@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import posixpath
 import re
@@ -51,6 +50,42 @@ CONVENTION = (
     '模板次日00:00–00:10按典型日计划周期延拓，等于本日00:00–00:10。'
     '此为建模约定，并非赛事官方确认。'
 )
+
+
+# ============================================================
+# Q1 固定模型参数（已内置，无需外部 JSON）
+# ============================================================
+CFG = {
+    "interval_minutes": 10,
+    "charge_efficiency": 0.9,
+    "discharge_efficiency": 0.9,
+    "storage_min_kwh": 1200.0,
+    "storage_max_kwh": 10800.0,
+    "initial_storage_kwh": 6000.0,
+    "terminal_storage_kwh": 6000.0,
+    "max_charge_power_kw": 5000.0,
+    "max_discharge_power_kw": 5000.0,
+    "allow_pv_curtailment": True,
+    "allow_grid_export": False,
+    "physical_tolerance": 0.000001,
+    "assumption_note": (
+        "暂将采样值视为此前10分钟区间平均功率；充放电效率各90%；"
+        "初末电量6000kWh。对官方result1.xlsx中的时间标签按物理时段匹配；"
+        "若模板覆盖至次日00:10，则采用典型日周期延拓约定。"
+    ),
+}
+
+
+def default_template_path():
+    """优先使用整理后的模板；没有时直接读取附件5中的官方原始模板。"""
+    candidates = [
+        PROJECT_ROOT / "Data_preprocessed" / "templates" / "result1.xlsx",
+        PROJECT_ROOT / "Data_preprocessed" / "raw" / "附件5" / "result1.xlsx",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
 
 
 def require(condition, message):
@@ -464,8 +499,9 @@ def build_dispatch_records(source: pd.DataFrame, solution: dict):
     return records
 
 
-def solve_from_input(input_path: Path, parameters_path: Path, solver: str):
-    cfg = json.loads(parameters_path.read_text(encoding='utf-8-sig'))
+def solve_from_input(input_path: Path, solver: str):
+    """Read Q1 input and solve using the parameters embedded in CFG."""
+    cfg = dict(CFG)
     source = pd.read_csv(input_path, float_precision='round_trip')
     require(len(source) == 144 and cfg['interval_minutes'] == 10,
             'This runner expects one full day in 10-minute intervals')
@@ -486,27 +522,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--solver', choices=['auto', 'milp'], default='auto')
     parser.add_argument('--input', type=Path, default=Q1_DIR / 'input' / 'q1_typical_day.csv')
-    parser.add_argument('--parameters', type=Path, default=Q1_DIR / 'parameters.json')
-    parser.add_argument('--template', type=Path,
-                        default=PROJECT_ROOT / 'Data_preprocessed' / 'templates' / 'result1.xlsx')
+    parser.add_argument('--template', type=Path, default=default_template_path())
     parser.add_argument('--output', type=Path, default=Q1_DIR / 'results' / 'result1.xlsx')
     args = parser.parse_args()
 
     input_path = args.input.resolve()
-    parameters_path = args.parameters.resolve()
     template_path = args.template.resolve()
     output_path = args.output.resolve()
 
     for path, label in [
         (input_path, 'input'),
-        (parameters_path, 'parameters'),
         (template_path, 'template'),
     ]:
         require(path.exists(), f'Missing {label} file: {path}')
 
     # 1) Solve Q1 and check all physical constraints.
     cfg, source, solution, _checks = solve_from_input(
-        input_path, parameters_path, args.solver
+        input_path, args.solver
     )
 
     # 2) Keep dispatch in memory; do not write intermediate CSVs.
@@ -543,6 +575,7 @@ def main():
           f'{solution["storage"][0]:.4f} / {solution["storage"][-1]:.4f} kWh')
     print(f'Saved-XLSX validation: {validation["status"]}')
     print(f'Output: {output_path}')
+    print('Generated artifacts: result1.xlsx only')
     print('=' * 60)
 
 
