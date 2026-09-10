@@ -236,6 +236,8 @@ __marimo__/
 
 #others
 .DS_Store
+Agents.md
+.tmp/
 
 # generated figures (q1)
 q1/.figures/
