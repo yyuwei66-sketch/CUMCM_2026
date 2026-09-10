@@ -1,0 +1,129 @@
+% !TeX program = xelatex
+% ------------------------------------------------------------
+% AI 工具使用详情（支撑材料）
+% 依据《全国大学生数学建模竞赛人工智能工具使用规定（2026年试行）》第4条填写。
+% 编译：xelatex "AI工具使用详情.tex"
+% 编译完成后，将生成的 PDF 重命名/确认文件名为「AI工具使用详情.pdf」，
+% 与论文一并放入提交的支撑材料中。
+% 下列所有表格内容均为占位，请按实际使用情况据实填写；未使用 AI 的环节请填写"未使用"。
+% ------------------------------------------------------------
+\documentclass[12pt, a4paper, scheme=chinese, fontset=windows]{ctexart}
+
+\setCJKmainfont[BoldFont=SimHei]{SimSun}
+
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.4cm, right=2.4cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.35}
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf}
+
+\usepackage[colorlinks=false]{hyperref}
+
+\begin{document}
+
+\begin{center}
+{\heiti\Large AI 工具使用详情}
+\end{center}
+\vspace{0.5em}
+
+\section*{一、所用 AI 工具名称、版本或型号}
+
+\begin{longtable}{cccc}
+\toprule
+序号 & AI 工具名称 & 版本/型号 & 主要用途 \\
+\midrule
+\endhead
+1 & [占位：如 ChatGPT] & [占位：如 GPT-4o] & [占位：如模型思路参考、代码调试、文字润色] \\
+2 & & & \\
+3 & & & \\
+\bottomrule
+\end{longtable}
+
+\section*{二、具体使用目的和环节}
+
+\begin{longtable}{cp{3.6cm}p{6.5cm}}
+\toprule
+序号 & 论文写作环节 & 使用目的 \\
+\midrule
+\endhead
+1 & 赛题理解与问题分析 & 辅助梳理题目条件与关键约束，供本队核对是否遗漏  \\
+2 & 模型建立与算法设计 & 提供可选算法思路供本队对比选择，核心建模方案由本队确定  \\
+3 & 模型求解与编程实现 & 辅助编写与调试求解代码，排查报错信息  \\
+4 & 论文撰写与文字润色 & 优化文字表达，调整语句通顺度  \\
+\bottomrule
+\end{longtable}
+
+\section*{三、主要提示方式与使用过程说明}
+
+\subsection*{（一）主要提示方式}
+
+\begin{longtable}{cp{3.6cm}cp{5cm}}
+\toprule
+序号 & 提示方式 & 简要说明 \\
+\midrule
+\endhead
+1 & 网页对话框交互 &  用于赛题理解、算法思路讨论、论文文字润色 \\
+2 & 代码编辑器内嵌 AI 编程助手 &  用于求解代码的编写、补全与调试报错 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{（二）使用过程说明}
+
+本队在竞赛期间以网页对话框为主要交互入口，围绕赛题理解、算法思路讨论与论文文字润色三类场景与 AI 工具沟通；在代码编写阶段则通过代码编辑器内嵌的 AI 辅助功能，完成代码补全、报错定位与调试。使用过程中遵循以下原则：一是不上传原始赛题数据文件与队员个人信息，仅在提示词中描述必要的问题背景；二是每次交互仅作为思路参考或效率工具，AI 给出的建模方案、公式表达与代码片段均由本队逐项核对、独立验证后再决定是否采纳，凡涉及模型结构、公式推导、参数取值等核心内容，最终判断与决策均由本队完成；三是对论文文字润色类的 AI 输出，本队通读全文并结合上下文语境调整措辞，确保表达与论文整体逻辑、符号体系保持一致。
+
+\textbf{典型交互示例：}
+\begin{longtable}{p{3cm}p{10cm}}
+\toprule
+项目 & 填写内容 \\
+\midrule
+\endhead
+对应环节 & [占位：如模型建立与算法设计] \\
+使用工具及版本 & [占位：如 ChatGPT GPT-4o] \\
+交互时间 & [占位：如 2026-09-XX XX:XX] \\
+本队提示词 & [占位：完整记录向 AI 提出的问题或指令，可附截图。注意：不要粘贴 API Key、账号密码等敏感信息] \\
+AI 回复内容 & [占位：记录 AI 回复核心内容，关键部分可原文引用] \\
+本队处理方式 & [占位：直接采纳 / 修改后采纳 / 未采纳。说明：修改了哪些内容？为什么修改？未采纳的原因是什么？] \\
+人工核验方式 & [占位：说明如何确认 AI 回复的正确性，如独立推导验证、代码独立复现、数据交叉核对、文献查证、队员讨论确认等] \\
+\bottomrule
+\end{longtable}
+
+\bigskip
+
+\section*{四、对 AI 输出的采纳、人工修改和核验的主要情况}
+
+\begin{longtable}{cp{3.4cm}p{4.6cm}p{4.6cm}}
+\toprule
+序号 & AI 输出内容类别 & 采纳与修改情况 & 人工核验方式 \\
+\midrule
+\endhead
+1 & 建模思路与方法建议 & [占位：如 AI 提供 3 种思路，本队选择第 2 种并改进] & [占位：如本队独立推导验证，对比文献确认可行性] \\
+2 & 代码编写与调试 & 修改后采纳：AI 给出的代码片段经本队检查变量命名、边界条件与算法逻辑后修改采纳，未直接使用未经审阅的代码 & 阅读与检查代码内容、独立运行代码并与手工计算结果、示例数据对比核验，确认输出无误 \\
+3 & 其他内容（文字润色） & 直接采纳/修改后采纳：对 AI 给出的润色建议逐句比对原意，确认未改变论文原有结论与数据表述后采纳 & 由队员通读全文核对语义是否与原意一致，确认无歧义或误导性表述 \\
+\bottomrule
+\end{longtable}
+
+\section*{核心环节人工主导确认}
+
+\begin{longtable}{cp{3.6cm}cp{5cm}}
+\toprule
+序号 & 核心环节 & 是否本队主导 & 本队贡献说明 \\
+\midrule
+\endhead
+1 & 模型结构与创新点 & 是 & 模型的整体框架、假设条件与创新设计均由本队讨论确定，AI 未参与该环节 \\
+2 & 公式推导与求解步骤 & 是 & 公式推导与求解步骤均由本队独立完成并手工核验 \\
+3 & 程序逻辑与参数设置 & 是 & 程序总体逻辑与关键参数取值由本队设计确定，AI 仅协助代码补全与调试报错 \\
+4 & 结果分析与论文核心论述 & 是 & 结果解读、模型评价与论文核心论述（摘要、结论等）均由本队独立撰写 \\
+5 & 论文撰写与图表制作等 & 是 & 论文整体结构安排、图表设计与数据展示均由本队完成，AI 仅用于局部文字润色 \\
+\bottomrule
+\end{longtable}
+
+\bigskip
+\noindent\textbf{本队确认：}以上 AI 工具使用情况真实完整，无隐瞒、无虚假陈述。核心建模与分析由本队主导完成，所有 AI 输出内容（语言润色除外）均经过人工审查与核实。如有不实，本队愿承担相应责任。
+
+\end{document}

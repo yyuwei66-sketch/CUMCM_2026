@@ -1,0 +1,128 @@
+% !TeX program = xelatex
+% 本文档基于 ctexart(scheme=chinese) + xeCJK，必须使用 XeLaTeX 编译；
+% 若用 pdflatex 编译，会在附录 C 的代码环境处因中文字符而报错退出。
+%
+% ------------------------------------------------------------
+% 文件结构说明（便于 navigation）：
+% 本文件只保留 LaTeX 导言区（宏包/排版设置）与章节装配顺序，
+% 每个 \section 级别的实际内容拆分到 sections/ 目录下的独立 .tex 文件中，
+% 文件名前缀数字即正文出现顺序。写作/编辑某一章时直接打开对应的
+% sections/XX_xxx.tex，不需要在几百行的单一文件里滚动查找。
+% 新增/调整章节顺序时，只需要在下方的装配区调整 \input 顺序，
+% 不需要搬动章节内容本身。
+% ------------------------------------------------------------
+\documentclass[12pt, a4paper, scheme=chinese, fontset=windows]{ctexart}
+
+% ---------------- 字体 ----------------
+% 全文正文字体固定为宋体；宋体本身没有真正的粗体字重，\bfseries 默认只是
+% "伪粗体"（描边加粗），标题/强调文字观感很弱。这里显式把粗体字重指向黑体，
+% 使 \bfseries、\textbf{} 在保持宋体正文的同时获得清晰可辨的粗体效果。
+\setCJKmainfont[BoldFont=SimHei]{SimSun}
+
+% ---------------- 页面与基础排版 ----------------
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.4cm, right=2.4cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.35}                 % 行距，可按赛区要求调整（常见 1.25~1.5）
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+
+% ---------------- 数学与符号 ----------------
+\usepackage{amsmath, amssymb, amsfonts, bm}
+
+% ---------------- 表格 ----------------
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf}
+
+% ---------------- 图片与占位框 ----------------
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tikz}
+% 占位图：正式提交前请替换为 \includegraphics[width=..]{图片路径}
+% 用法：\FigPlaceholder{宽cm}{高cm}{占位说明文字}——说明文字仅作占位提示，
+% 图号/图题请统一交给下方的 \caption 生成，避免出现重复编号。
+\newcommand{\FigPlaceholder}[3]{%
+  \begin{tikzpicture}
+    \useasboundingbox (0,0) rectangle (#1,#2);
+    \draw[dashed, gray] (0,0) rectangle (#1,#2);
+    \node[align=center, text width=#1 cm, gray] at (#1/2,#2/2) {#3};
+  \end{tikzpicture}%
+}
+
+% ---------------- 列表 ----------------
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=2em, itemsep=0.2em}
+\setlist[enumerate]{leftmargin=2.4em, itemsep=0.2em}
+
+% ---------------- 代码环境（用于附录代码展示）----------------
+\usepackage{xcolor}
+\usepackage{listings}
+\lstdefinestyle{pystyle}{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{orange!70!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=6pt,
+  frame=single,
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  tabsize=4,
+  columns=flexible,
+  extendedchars=true,
+}
+\lstset{style=pystyle}
+
+% ---------------- 超链接（隐藏彩色边框，便于打印）----------------
+\usepackage[hidelinks]{hyperref}
+
+% ---------------- 页眉页脚 ----------------
+\pagestyle{plain}
+
+% ---------------- 标题编号：一、二、三…（章）+ 4.1（节）----------------
+% ctexart 的 scheme=chinese 不会自动把 \section 编号改成中文数字，
+% 这里显式覆盖 \thesection，使其呈现为样例论文中的“一、”“二、”…风格；
+% \subsection / \subsubsection 保持阿拉伯数字（如 4.1、4.3.1），与样例一致。
+\renewcommand{\thesection}{\chinese{section}、}
+% 注意：\subsection/\subsubsection 默认引用 \thesection 作为前缀，
+% 这里显式改回阿拉伯数字前缀（如 4.1、4.3.1），避免变成“一、.1”。
+\renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+\ctexset{
+  section = {
+    format     += \Large\bfseries,
+    aftername   = {},
+    numbering   = true,
+  }
+}
+
+% ============================================================
+\begin{document}
+
+% ------------------------------------------------------------
+% 章节装配区：按正文出现顺序 \input 对应文件，不在此处直接写正文内容。
+% 每个文件对应一个 \section 级别的章节，文件名前缀数字
+% 即装配顺序，调整顺序时改这里的排列即可，不需要搬动章节内容。
+% ------------------------------------------------------------
+\input{sections/00_abstract}      % 标题 + 摘要 + 关键词
+\input{sections/01_restate}       % 一、问题重述
+\input{sections/02_analysis}      % 二、问题分析
+\input{sections/03_assumptions}   % 三、模型假设
+\input{sections/04_notation}      % 四、符号说明
+\input{sections/05_data_profile}  % 五、数据侧写
+\input{sections/06_q1}            % 六、问题一的求解
+\input{sections/07_q2}            % 七、问题二的求解
+\input{sections/08_q3}            % 八、问题三的求解
+\input{sections/09_q4}            % 九、问题四的求解
+\input{sections/10_evaluation}    % 十、模型的评价、改进与推广
+\input{sections/10b_ai_statement} % AI工具使用声明
+\input{sections/11_references}    % 参考文献
+\input{sections/12_appendix}      % 附录A/B/C
+
+\end{document}
