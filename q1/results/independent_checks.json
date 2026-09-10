@@ -1,0 +1,109 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "check": "Input SHA256 matches solution",
+      "passed": true
+    },
+    {
+      "check": "Configuration matches solution",
+      "passed": true
+    },
+    {
+      "check": "Exactly 144 contiguous slots",
+      "passed": true
+    },
+    {
+      "check": "Physical interval labels preserved",
+      "passed": true
+    },
+    {
+      "check": "Source values: load_kwh",
+      "passed": true
+    },
+    {
+      "check": "Source values: pv_kwh",
+      "passed": true
+    },
+    {
+      "check": "Source values: price_yuan_per_kwh",
+      "passed": true
+    },
+    {
+      "check": "Nonnegative decisions",
+      "passed": true
+    },
+    {
+      "check": "Supply-demand balance",
+      "passed": true
+    },
+    {
+      "check": "Independent storage reconstruction",
+      "passed": true
+    },
+    {
+      "check": "Storage bounds",
+      "passed": true
+    },
+    {
+      "check": "Terminal stored energy",
+      "passed": true
+    },
+    {
+      "check": "Charge power limit",
+      "passed": true
+    },
+    {
+      "check": "Discharge power limit",
+      "passed": true
+    },
+    {
+      "check": "No simultaneous charge and discharge",
+      "passed": true
+    },
+    {
+      "check": "Curtailment limited to available PV",
+      "passed": true
+    },
+    {
+      "check": "Total cost independently recomputed",
+      "passed": true
+    },
+    {
+      "check": "Grid purchase independently recomputed",
+      "passed": true
+    },
+    {
+      "check": "Baseline recomputed",
+      "passed": true
+    },
+    {
+      "check": "Cost no worse than no-storage baseline",
+      "passed": true
+    },
+    {
+      "check": "Reported LP lower bound does not exceed attained cost",
+      "passed": true
+    },
+    {
+      "check": "Reported per-slot costs match source price",
+      "passed": true
+    },
+    {
+      "check": "Paper table1 matches selected physical intervals",
+      "passed": true
+    },
+    {
+      "check": "Four-hour charging totals",
+      "passed": true
+    },
+    {
+      "check": "Four-hour discharging totals",
+      "passed": true
+    },
+    {
+      "check": "145 saved boundary states",
+      "passed": true
+    }
+  ]
+}

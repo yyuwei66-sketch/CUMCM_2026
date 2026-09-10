@@ -1,0 +1,15 @@
+{
+  "interval_minutes": 10,
+  "charge_efficiency": 0.9,
+  "discharge_efficiency": 0.9,
+  "storage_min_kwh": 1200.0,
+  "storage_max_kwh": 10800.0,
+  "initial_storage_kwh": 6000.0,
+  "terminal_storage_kwh": 6000.0,
+  "max_charge_power_kw": 5000.0,
+  "max_discharge_power_kw": 5000.0,
+  "allow_pv_curtailment": true,
+  "allow_grid_export": false,
+  "physical_tolerance": 0.000001,
+  "assumption_note": "暂将采样值视为此前10分钟区间平均功率；充放电效率各90%；初末电量6000kWh。原模板时间标签未确认，本包生成物理时间索引下的计算结果，未填写官方result1.xlsx。"
+}
