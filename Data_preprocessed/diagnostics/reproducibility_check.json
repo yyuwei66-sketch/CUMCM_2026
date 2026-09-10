@@ -1,0 +1,6 @@
+{
+  "status": "passed",
+  "processed_csv_files_compared": 7,
+  "identical_hashes_after_repeat": true,
+  "all_columns_documented": true
+}

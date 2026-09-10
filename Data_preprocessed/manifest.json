@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "source_sha256": {
+    "raw/附件1.xlsx": "66b87134f5ecccd68184d3539bb1293ef039f9e0fdd955a589b9bfa7f227c377",
+    "raw/附件2.xlsx": "2e95fd446bfafa0d8c59577b5c2e2ea8b3f1def20dde54a3062556f4da9b4c72",
+    "raw/附件3.xlsx": "8a61b06c52bd0d639a1cc37c61a7d9f5b75edcbca718f64c1bd3498ec9f9d843",
+    "raw/附件4.xlsx": "20e9c93aeab5e8e21ae4dd15587f9e190f7408692504c1319598461cd654fe71",
+    "templates/result1.xlsx": "28360e0974e7d6065394a8aba4e14a86773ae0036cc7d3ea1b211b515b03d688",
+    "templates/result2.xlsx": "1c26494cfc6d754e0bd9bff7e13e1126a73d2d2da6c5336eb251d89b9a1a1a47",
+    "templates/result3.xlsx": "c59da470cabd0be23f602c95c8aa9d11ec224a0cdac216b3e1f218e65d006bdc",
+    "templates/result4-2.xlsx": "1c26494cfc6d754e0bd9bff7e13e1126a73d2d2da6c5336eb251d89b9a1a1a47",
+    "templates/result4-3.xlsx": "c59da470cabd0be23f602c95c8aa9d11ec224a0cdac216b3e1f218e65d006bdc"
+  },
+  "source_column_mapping": {
+    "actuals_10min.load_kw": "raw/附件2.xlsx / 小区负载 / source_excel_row,source_excel_column",
+    "actuals_10min.pv_kw": "raw/附件2.xlsx / 光伏发电实际功率 / source_excel_row,source_excel_column",
+    "actuals_10min.price_actual_yuan_per_kwh": "raw/附件4.xlsx / Sheet1 / source_excel_row,source_excel_column",
+    "q1_typical_day": "raw/附件1.xlsx / Sheet1 / A时间 B电价 C负载 D光伏预报",
+    "pv_forecast_hourly.pv_forecast_kw": "raw/附件3.xlsx / Sheet1 / source_excel_row,source_excel_column"
+  },
+  "output_sha256": {
+    "processed/actuals_10min.csv": "f432eabfed8c05538a866bc091281f03a17df54609d7401c0dfefd5042fdb234",
+    "processed/day_ahead_features.csv": "e667a7d9ed2a3ee35786c3682dfce78b3bbc8c90ce03bbcc64e1c00b782c052e",
+    "processed/evaluation_calendar.csv": "5d9c5d7ddb3a03879bf432e32adb90fe945c3c67e7f9bbefff135ca202f3d336",
+    "processed/evaluation_labels_DO_NOT_USE_AS_FEATURES.csv": "630684d951fba7aa84227d2fc816f7264da0eebb1d5e35a9bb145c0de422abc9",
+    "processed/pv_forecast_10min.csv": "948f66972e1a98ccee76f1f114f67a3b346f156e5cc36d2b3692587402c3a8ed",
+    "processed/pv_forecast_hourly.csv": "75ed2fb552a1f421bd02d8763d3553fcc94edfdbb4ca8fcd5f628c0575b644b4",
+    "processed/q1_typical_day.csv": "431aba98c112944a1588dbae1613e1064d74f71a103ee7554fd2c386e9492139"
+  },
+  "row_counts": {
+    "actuals_10min": 52560,
+    "q1_typical_day": 144,
+    "pv_forecast_hourly": 35040,
+    "pv_forecast_10min": 210240,
+    "day_ahead_features": 48096,
+    "evaluation_labels_DO_NOT_USE_AS_FEATURES": 48096,
+    "evaluation_calendar": 365
+  },
+  "assumptions": {
+    "time_axis": "Unzoned local clock of source files; no UTC or user-location conversion",
+    "interval_alignment": "PROVISIONAL: sample at t mapped to [t-10min,t)",
+    "energy_approximation": "Power treated as preceding interval average; kWh = kW/6",
+    "instant_observation_availability": true,
+    "forecast_interpolation": "Linear within each issued vintage; anchor actual at issue if present, else flat first hourly forecast",
+    "preserve_outliers_zeros_negative_net_load": true,
+    "scaling_imputation_model_fitting": "None",
+    "forecast_tail": "All forecasts preserved, including targets after 2025 actual coverage",
+    "price_information": "Q2/3 fixed daily prices known from attachment1. Q4 actual prices are outcomes/history; future visibility unspecified.",
+    "template_time_mapping": "UNRESOLVED; original templates unchanged; positional export prohibited"
+  },
+  "filled_group_dates": 1095,
+  "out_of_coverage_hourly_forecasts": 36,
+  "out_of_coverage_10min_forecasts": 216,
+  "descriptive_review_flags_count": 0,
+  "attachment1_max_deviation_from_full_year_slot_mean": {
+    "load_kw": 5.0410958920110716e-05,
+    "pv_kw": 0.04310438356164384,
+    "price_yuan_per_kwh": 5.150684931509719e-05
+  },
+  "runtime": {
+    "python": "3.12.14",
+    "pandas": "2.2.3",
+    "numpy": "2.3.5",
+    "openpyxl": "3.1.5"
+  }
+}

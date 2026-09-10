@@ -1,0 +1,89 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "check": "CSV exact numeric source fidelity: load_kw",
+      "passed": true
+    },
+    {
+      "check": "CSV exact numeric source fidelity: pv_kw",
+      "passed": true
+    },
+    {
+      "check": "CSV exact numeric source fidelity: price_actual_yuan_per_kwh",
+      "passed": true
+    },
+    {
+      "check": "Q1 all numeric values exact",
+      "passed": true
+    },
+    {
+      "check": "Every hourly forecast source value exact",
+      "passed": true
+    },
+    {
+      "check": "Jan31 midnight belongs to original Jan31 row",
+      "passed": true
+    },
+    {
+      "check": "All interval durations 10 minutes",
+      "passed": true
+    },
+    {
+      "check": "Cross-year 24h forecast preserved",
+      "passed": true
+    },
+    {
+      "check": "Negative net load retained",
+      "passed": true
+    },
+    {
+      "check": "No artificial storage-power cap on PV",
+      "passed": true
+    },
+    {
+      "check": "All source forecast knots reproduced exactly",
+      "passed": true
+    },
+    {
+      "check": "Missing initial observation uses explicit forecast fallback",
+      "passed": true
+    },
+    {
+      "check": "Future actual perturbation cannot change earlier plan features",
+      "passed": true
+    },
+    {
+      "check": "History accessor stops at observation cutoff",
+      "passed": true
+    },
+    {
+      "check": "Problem4 does not expose Q2/3 fixed price as known actual future price",
+      "passed": true
+    },
+    {
+      "check": "As-of forecast never uses future release",
+      "passed": true
+    },
+    {
+      "check": "Future forecast revisions cannot change an earlier as-of selection",
+      "passed": true
+    },
+    {
+      "check": "At noon the noon vintage is selected",
+      "passed": true
+    },
+    {
+      "check": "Missing already-issued forecast raises instead of future backfill",
+      "passed": true
+    },
+    {
+      "check": "All source/template hashes unchanged",
+      "passed": true
+    },
+    {
+      "check": "All processed CSV hashes match manifest",
+      "passed": true
+    }
+  ]
+}

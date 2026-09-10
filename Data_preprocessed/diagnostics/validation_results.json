@@ -1,0 +1,100 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "check": "actual_count",
+      "passed": true,
+      "detail": "365 days x 144 records"
+    },
+    {
+      "check": "unique_actual_time",
+      "passed": true,
+      "detail": "No duplicate sample timestamps"
+    },
+    {
+      "check": "continuous_actual_time",
+      "passed": true,
+      "detail": "10-minute spacing including day boundaries"
+    },
+    {
+      "check": "full_calendar_intervals",
+      "passed": true,
+      "detail": "Under provisional end-sample mapping"
+    },
+    {
+      "check": "forecast_hourly_count",
+      "passed": true,
+      "detail": "1460 vintages x 24 leads"
+    },
+    {
+      "check": "forecast10_count",
+      "passed": true,
+      "detail": "1460 vintages x 144 leads"
+    },
+    {
+      "check": "unique_forecast10_key",
+      "passed": true,
+      "detail": "One value per vintage and target"
+    },
+    {
+      "check": "causal_forecast_anchors",
+      "passed": true,
+      "detail": "No actual anchor after publication"
+    },
+    {
+      "check": "forecast_horizon",
+      "passed": true,
+      "detail": "Only future intervals per vintage"
+    },
+    {
+      "check": "original_hourly_knots_preserved",
+      "passed": true,
+      "detail": "Interpolated values at whole hours equal source exactly"
+    },
+    {
+      "check": "nonnegative_interpolated_pv",
+      "passed": true,
+      "detail": "No overshoot from linear interpolation"
+    },
+    {
+      "check": "features_count",
+      "passed": true,
+      "detail": "334 evaluation days x 144 slots"
+    },
+    {
+      "check": "features_no_missing",
+      "passed": true,
+      "detail": "28-day history exists from February"
+    },
+    {
+      "check": "features_causal",
+      "passed": true,
+      "detail": "All historical features available by 00:00 under instant-observation assumption"
+    },
+    {
+      "check": "no_actual_target_columns_in_features",
+      "passed": true,
+      "detail": "Target-day actuals are separate from features"
+    },
+    {
+      "check": "energy_conversion_load",
+      "passed": true,
+      "detail": "Power x 1/6 hour, no rounded intermediate energies"
+    },
+    {
+      "check": "energy_conversion_pv",
+      "passed": true,
+      "detail": "Power x 1/6 hour, no rounded intermediate energies"
+    },
+    {
+      "check": "energy_conversion_net_load",
+      "passed": true,
+      "detail": "Power x 1/6 hour, no rounded intermediate energies"
+    },
+    {
+      "check": "source_files_unchanged",
+      "passed": true,
+      "detail": "SHA256 unchanged for all input workbooks"
+    }
+  ]
+}
