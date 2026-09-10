@@ -11,13 +11,22 @@ CUMCM 2026 C题 Q2：单文件最终版
 4. 按因果实时规则执行储能与紧急购电；
 5. 完成物理约束、费用、历史信息泄漏等检查；
 6. 直接填写附件5中的官方 result2.xlsx；
-7. 保存后重新读取 Excel 进行核验。
+7. 严格保留官方 result2.xlsx 的工作表、表头、日期排版和时间标签，并在保存后重新核验。
 
 默认只生成：
     q2/results/result2.xlsx
 
 不生成图片，不生成中间 CSV/JSON/Markdown，不依赖 parameters.json、
 q2_core.py、run_q2.py、check_q2.py 或 JavaScript 导出脚本。
+
+官方模板的“计划购电量”从 0:10-0:20 开始，以 0:00-0:10+1 结束。
+当前模型沿用前一问的“时刻样本代表此前10分钟平均功率”解释，因此导出时
+按官方标签将同一天的 144 个物理区间循环平移一格：
+    0:10-0:20      <- 物理 0:10-0:20
+    ...
+    23:50-0:00+1   <- 物理 23:50-24:00
+    0:00-0:10+1    <- 物理 0:00-0:10
+这样每个自然日的 144 个十分钟物理区间恰好出现一次，全天计划量和费用不变。
 
 可选：
     python q2.py --compare
@@ -1167,525 +1176,41 @@ def validate_primary(
 
 
 # ============================================================
-# Excel 模板导出
+# Excel 模板导出：严格按照官方 result2.xlsx
 # ============================================================
 
-def _header_key(value):
+OFFICIAL_SHEETS = ["计划购电量", "充放电量", "紧急购电量"]
+
+OFFICIAL_BATTERY_INTERVALS = [
+    "0:00-4:00",
+    "4:00-8:00",
+    "8:00-12:00",
+    "12:00-16:00",
+    "16:00-20:00",
+    "20:00-24:00",
+]
+
+
+def _header_text(value):
     if value is None:
         return ""
-    return (
-        str(value)
-        .replace("\n", "")
-        .replace("\r", "")
-        .replace(" ", "")
-        .strip()
-    )
+    return str(value).replace("\n", "").replace("\r", "").strip()
 
 
-def _copy_row_style(ws, source_row, target_row, max_col):
-    """模板行数不足时，复制一行基础样式。"""
-    if source_row == target_row:
-        return
-
-    if ws.row_dimensions[source_row].height is not None:
-        ws.row_dimensions[target_row].height = (
-            ws.row_dimensions[source_row].height
-        )
-
-    for col in range(1, max_col + 1):
-        src = ws.cell(source_row, col)
-        dst = ws.cell(target_row, col)
-
-        if src.has_style:
-            dst._style = copy(src._style)
-
-        if src.number_format:
-            dst.number_format = src.number_format
-
-        if src.font:
-            dst.font = copy(src.font)
-        if src.fill:
-            dst.fill = copy(src.fill)
-        if src.border:
-            dst.border = copy(src.border)
-        if src.alignment:
-            dst.alignment = copy(src.alignment)
-        if src.protection:
-            dst.protection = copy(src.protection)
-
-
-def _ensure_rows(ws, needed_last_row):
-    if ws.max_row >= needed_last_row:
-        return
-
-    source_row = max(2, ws.max_row)
-
-    for row in range(ws.max_row + 1, needed_last_row + 1):
-        _copy_row_style(
-            ws,
-            source_row,
-            row,
-            ws.max_column,
-        )
-
-
-def _clear_values(ws, start_row, end_row, columns):
-    end_row = min(end_row, ws.max_row)
-    for row in range(start_row, end_row + 1):
-        for col in columns:
-            ws.cell(row, col).value = None
-
-
-def _plan_sheet_columns(ws):
-    headers = {
-        col: _header_key(ws.cell(1, col).value)
-        for col in range(1, ws.max_column + 1)
-    }
-
-    date_col = next(
-        (
-            c
-            for c, h in headers.items()
-            if h.startswith("日期")
-        ),
-        None,
-    )
-    total_col = next(
-        (
-            c
-            for c, h in headers.items()
-            if "全天计划购电量" in h
-        ),
-        None,
-    )
-    cost_col = next(
-        (
-            c
-            for c, h in headers.items()
-            if "全天计划购电费" in h
-        ),
-        None,
-    )
-
-    interval_cols = []
-
-    pattern = re_compile_interval()
-
-    for c, h in headers.items():
-        if pattern.fullmatch(h):
-            interval_cols.append((c, h))
-
-    require(date_col is not None, "计划购电量 sheet 缺少日期列")
-    require(total_col is not None, "计划购电量 sheet 缺少全天计划购电量列")
-    require(cost_col is not None, "计划购电量 sheet 缺少全天计划购电费列")
-    require(
-        len(interval_cols) == 144,
-        f"计划购电量 sheet 应有144个时段列，实际 {len(interval_cols)}",
-    )
-
-    interval_cols.sort(
-        key=lambda item: _interval_start_minutes(item[1])
-    )
-
-    expected = [
-        interval_label(i)
-        for i in range(1, 145)
-    ]
-    actual = [h for _, h in interval_cols]
-
-    require(
-        actual == expected,
-        "计划购电量 sheet 的144个时间段标签不符合00:00-24:00十分钟顺序",
-    )
-
-    return date_col, interval_cols, total_col, cost_col
-
-
-def re_compile_interval():
-    import re
-    return re.compile(
-        r"\d{2}:\d{2}-\d{2}:\d{2}"
-    )
-
-
-def _interval_start_minutes(text):
-    left = text.split("-", 1)[0]
-    h, m = map(int, left.split(":"))
-    return h * 60 + m
-
-
-def _battery_sheet_columns(ws):
-    headers = {
-        col: _header_key(ws.cell(1, col).value)
-        for col in range(1, ws.max_column + 1)
-    }
-
-    def find(predicate, label):
-        col = next(
-            (c for c, h in headers.items() if predicate(h)),
-            None,
-        )
-        require(col is not None, f"充放电量 sheet 缺少 {label} 列")
-        return col
-
-    date_col = find(
-        lambda h: h == "日期" or h.startswith("日期"),
-        "日期",
-    )
-    interval_col = find(
-        lambda h: "时间段" in h,
-        "时间段",
-    )
-    charge_col = find(
-        lambda h: "充电量" in h and "放电量" not in h,
-        "充电量",
-    )
-    discharge_col = find(
-        lambda h: "放电量" in h,
-        "放电量",
-    )
-    time_col = find(
-        lambda h: h == "时刻",
-        "时刻",
-    )
-    storage_col = find(
-        lambda h: "储电量" in h,
-        "储电量",
-    )
-
-    return (
-        date_col,
-        interval_col,
-        charge_col,
-        discharge_col,
-        time_col,
-        storage_col,
-    )
-
-
-def _emergency_sheet_columns(ws):
-    headers = {
-        col: _header_key(ws.cell(1, col).value)
-        for col in range(1, ws.max_column + 1)
-    }
-
-    def find(predicate, label):
-        col = next(
-            (c for c, h in headers.items() if predicate(h)),
-            None,
-        )
-        require(col is not None, f"紧急购电量 sheet 缺少 {label} 列")
-        return col
-
-    date_col = find(
-        lambda h: h == "日期" or h.startswith("日期"),
-        "日期",
-    )
-    interval_col = find(
-        lambda h: "购电时间段" in h or "时间段" in h,
-        "紧急购电时间段",
-    )
-    amount_col = find(
-        lambda h: "紧急购电量" in h,
-        "紧急购电量",
-    )
-
-    return date_col, interval_col, amount_col
-
-
-def build_submission_tables(primary_dispatch):
-    ev = primary_dispatch[
-        primary_dispatch.evaluation
-    ].copy()
-
-    require(
-        ev.date.nunique() == 334,
-        "Submission period must contain 334 dates",
-    )
-
-    dates = pd.date_range(
-        EVALUATION_START,
-        EVALUATION_END,
-        freq="D",
-    )
-
-    # ---------- 计划购电 ----------
-    daily = daily_summary(ev).set_index("date")
-
-    plan_rows = []
-
-    for date in dates:
-        day = str(date.date())
-        x = ev[ev.date == day].sort_values("slot")
-
-        require(
-            len(x) == 144,
-            f"{day}: planned purchase does not contain 144 slots",
-        )
-
-        plan_rows.append(
-            {
-                "date": day,
-                "grid": x.planned_grid_kwh.to_numpy(float),
-                "total_grid": float(
-                    x.planned_grid_kwh.sum()
-                ),
-                "cost": float(
-                    x.planned_cost_yuan.sum()
-                ),
-            }
-        )
-
-    # ---------- 充放电 ----------
-    battery_rows = []
-
-    for date in dates:
-        day = str(date.date())
-        x = ev[ev.date == day].sort_values("slot")
-
-        for block in range(6):
-            start_slot = block * 24 + 1
-            end_slot = (block + 1) * 24
-
-            z = x[
-                (x.slot >= start_slot)
-                & (x.slot <= end_slot)
-            ]
-
-            battery_rows.append(
-                {
-                    "date": day,
-                    "interval": (
-                        f"{clock(block*240)}-"
-                        f"{clock((block+1)*240)}"
-                    ),
-                    "charge_kwh": float(
-                        z.charge_kwh.sum()
-                    ),
-                    "discharge_kwh": float(
-                        z.discharge_kwh.sum()
-                    ),
-                    "time": (
-                        "00:00"
-                        if block == 0
-                        else (
-                            "24:00"
-                            if block == 1
-                            else None
-                        )
-                    ),
-                    "storage_kwh": (
-                        float(
-                            x.storage_start_kwh.iloc[0]
-                        )
-                        if block == 0
-                        else (
-                            float(
-                                x.storage_end_kwh.iloc[-1]
-                            )
-                            if block == 1
-                            else None
-                        )
-                    ),
-                }
-            )
-
-    # ---------- 紧急购电 ----------
-    raw_events = emergency_events(ev)
-    emergency_rows = []
-
-    for date in dates:
-        day = str(date.date())
-        rows = raw_events[raw_events.date == day]
-
-        if len(rows) == 0:
-            emergency_rows.append(
-                {
-                    "date": day,
-                    "interval": "无",
-                    "emergency_kwh": 0.0,
-                }
-            )
-        else:
-            for _, row in rows.iterrows():
-                emergency_rows.append(
-                    {
-                        "date": day,
-                        "interval": row["interval"],
-                        "emergency_kwh": float(
-                            row["emergency_kwh"]
-                        ),
-                    }
-                )
-
-    return plan_rows, battery_rows, emergency_rows
-
-
-def export_result2(template_path, output_path, primary_dispatch):
-    template_path = Path(template_path).resolve()
-    output_path = Path(output_path).resolve()
-
-    require(
-        template_path.exists(),
-        f"Missing result2 template: {template_path}",
-    )
-    require(
-        template_path != output_path,
-        "禁止直接覆盖附件5原始 result2.xlsx 模板",
-    )
-
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    # 先复制模板，再仅填写结果单元格。
-    shutil.copy2(template_path, output_path)
-
-    wb = load_workbook(output_path)
-
-    required_sheets = {
-        "计划购电量",
-        "充放电量",
-        "紧急购电量",
-    }
-    require(
-        required_sheets.issubset(set(wb.sheetnames)),
-        "result2.xlsx 模板必须包含：计划购电量、充放电量、紧急购电量",
-    )
-
-    plan_rows, battery_rows, emergency_rows = (
-        build_submission_tables(primary_dispatch)
-    )
-
-    # --------------------------------------------------------
-    # 1) 计划购电量
-    # --------------------------------------------------------
-    ws = wb["计划购电量"]
-
-    (
-        date_col,
-        interval_cols,
-        total_col,
-        cost_col,
-    ) = _plan_sheet_columns(ws)
-
-    last_row = 1 + len(plan_rows)
-    _ensure_rows(ws, last_row)
-
-    for i, item in enumerate(plan_rows, start=2):
-        ws.cell(i, date_col).value = pd.Timestamp(
-            item["date"]
-        ).to_pydatetime()
-
-        for slot, (col, _) in enumerate(
-            interval_cols,
-            start=1,
-        ):
-            ws.cell(i, col).value = float(
-                item["grid"][slot - 1]
-            )
-
-        ws.cell(i, total_col).value = item["total_grid"]
-        ws.cell(i, cost_col).value = item["cost"]
-
-    # 若使用的并非空模板，清掉评价期之后残留的旧数据。
-    if ws.max_row > last_row:
-        _clear_values(
-            ws,
-            last_row + 1,
-            ws.max_row,
-            [
-                date_col,
-                *[c for c, _ in interval_cols],
-                total_col,
-                cost_col,
-            ],
-        )
-
-    # --------------------------------------------------------
-    # 2) 充放电量
-    # --------------------------------------------------------
-    ws = wb["充放电量"]
-
-    (
-        date_col,
-        interval_col,
-        charge_col,
-        discharge_col,
-        time_col,
-        storage_col,
-    ) = _battery_sheet_columns(ws)
-
-    last_row = 1 + len(battery_rows)
-    _ensure_rows(ws, last_row)
-
-    for i, item in enumerate(battery_rows, start=2):
-        ws.cell(i, date_col).value = pd.Timestamp(
-            item["date"]
-        ).to_pydatetime()
-        ws.cell(i, interval_col).value = item["interval"]
-        ws.cell(i, charge_col).value = item["charge_kwh"]
-        ws.cell(i, discharge_col).value = item["discharge_kwh"]
-        ws.cell(i, time_col).value = item["time"]
-        ws.cell(i, storage_col).value = item["storage_kwh"]
-
-    if ws.max_row > last_row:
-        _clear_values(
-            ws,
-            last_row + 1,
-            ws.max_row,
-            [
-                date_col,
-                interval_col,
-                charge_col,
-                discharge_col,
-                time_col,
-                storage_col,
-            ],
-        )
-
-    # --------------------------------------------------------
-    # 3) 紧急购电量
-    # --------------------------------------------------------
-    ws = wb["紧急购电量"]
-
-    (
-        date_col,
-        interval_col,
-        amount_col,
-    ) = _emergency_sheet_columns(ws)
-
-    last_row = 1 + len(emergency_rows)
-    _ensure_rows(ws, last_row)
-
-    for i, item in enumerate(emergency_rows, start=2):
-        ws.cell(i, date_col).value = pd.Timestamp(
-            item["date"]
-        ).to_pydatetime()
-        ws.cell(i, interval_col).value = item["interval"]
-        ws.cell(i, amount_col).value = item["emergency_kwh"]
-
-    if ws.max_row > last_row:
-        _clear_values(
-            ws,
-            last_row + 1,
-            ws.max_row,
-            [date_col, interval_col, amount_col],
-        )
-
-    wb.save(output_path)
-
+def _snapshot_row_style(ws, row, max_col):
+    """保存官方模板某一行的样式，供扩展模板行时复制。"""
     return {
-        "plan_rows": len(plan_rows),
-        "battery_rows": len(battery_rows),
-        "emergency_rows": len(emergency_rows),
+        "height": ws.row_dimensions[row].height,
+        "cells": [copy(ws.cell(row, col)._style) for col in range(1, max_col + 1)],
     }
 
 
-# ============================================================
-# 保存后的 Excel 独立核验
-# ============================================================
+def _apply_row_style(ws, row, snapshot):
+    if snapshot["height"] is not None:
+        ws.row_dimensions[row].height = snapshot["height"]
+    for col, style in enumerate(snapshot["cells"], start=1):
+        ws.cell(row, col)._style = copy(style)
+
 
 def _as_date_string(value):
     if value is None:
@@ -1696,240 +1221,522 @@ def _as_date_string(value):
         return str(value).strip()
 
 
-def verify_result2(output_path, primary_dispatch):
-    output_path = Path(output_path)
+def _time_text(value):
+    """把 Excel 中的 0、time(0,0)、'24:00' 统一成可比较文本。"""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)) and abs(float(value)) < 1e-12:
+        return "0:00"
+    if hasattr(value, "hour") and hasattr(value, "minute"):
+        return f"{int(value.hour)}:{int(value.minute):02d}"
+    text = str(value).strip()
+    if text in ("00:00", "0:00", "00:00:00", "0:00:00"):
+        return "0:00"
+    return text
+
+
+def _official_plan_layout(ws):
+    """
+    官方模板固定布局：
+      A       日期\时间
+      B:EO    144个十分钟计划购电量
+      EP      全天购电量
+      EQ      全天购电费
+    """
+    require(ws.max_column >= 147, "计划购电量工作表列数不足")
 
     require(
-        output_path.exists(),
-        f"Output workbook not found: {output_path}",
+        _header_text(ws.cell(1, 1).value) == r"日期\时间",
+        "计划购电量!A1 必须保持官方标题“日期\\时间”",
     )
 
-    wb = load_workbook(
-        output_path,
-        data_only=True,
-        read_only=False,
+    interval_headers = [
+        _header_text(ws.cell(1, col).value)
+        for col in range(2, 146)
+    ]
+
+    require(len(interval_headers) == 144, "官方计划购电量必须有144个时段")
+    require(
+        interval_headers[0] == "0:10-0:20",
+        f"官方模板首时段异常: {interval_headers[0]!r}",
+    )
+    require(
+        interval_headers[-2] == "23:50-0:00+1",
+        f"官方模板倒数第二时段异常: {interval_headers[-2]!r}",
+    )
+    require(
+        interval_headers[-1] == "0:00-0:10+1",
+        f"官方模板末时段异常: {interval_headers[-1]!r}",
+    )
+    require(
+        _header_text(ws.cell(1, 146).value) == "全天计划购电量",
+        "计划购电量!EP1 必须保持官方标题“全天计划购电量”",
+    )
+    require(
+        _header_text(ws.cell(1, 147).value) == "全天计划购电费",
+        "计划购电量!EQ1 必须保持官方标题“全天计划购电费”",
     )
 
-    for sheet in [
-        "计划购电量",
-        "充放电量",
-        "紧急购电量",
-    ]:
-        require(
-            sheet in wb.sheetnames,
-            f"Saved workbook missing sheet: {sheet}",
+    return 1, list(range(2, 146)), 146, 147
+
+
+def _official_battery_layout(ws):
+    expected = ["日期", "时间段", "充电量", "放电量", "时刻", "储电量"]
+    actual = [_header_text(ws.cell(1, c).value) for c in range(1, 7)]
+    require(actual == expected, f"充放电量表头被修改: {actual}")
+    return tuple(range(1, 7))
+
+
+def _official_emergency_layout(ws):
+    expected = ["日期", "购电时间段", "购电量"]
+    actual = [_header_text(ws.cell(1, c).value) for c in range(1, 4)]
+    require(actual == expected, f"紧急购电量表头被修改: {actual}")
+    return tuple(range(1, 4))
+
+
+def build_submission_tables(primary_dispatch):
+    """
+    生成与官方 result2.xlsx 一一对应的数据。
+
+    重要：
+    当前内部 dispatch 的 slot 1..144 表示物理区间
+      00:00-00:10, 00:10-00:20, ..., 23:50-24:00。
+    官方模板的144列标签则是
+      0:10-0:20, ..., 23:50-0:00+1, 0:00-0:10+1。
+    因此按既定“此前10分钟平均功率”口径循环平移一格，仅改变展示位置，
+    不改变同一自然日的全天计划购电量和计划购电费。
+    """
+    ev = primary_dispatch[primary_dispatch.evaluation].copy()
+
+    require(
+        ev.date.nunique() == 334 and len(ev) == 334 * 144,
+        "提交期必须为 2025-02-01 至 2025-12-31，共334天×144时段",
+    )
+
+    dates = pd.date_range(EVALUATION_START, EVALUATION_END, freq="D")
+
+    # ---------- 计划购电量 ----------
+    plan_rows = []
+
+    for date in dates:
+        day = str(date.date())
+        x = ev[ev.date == day].sort_values("slot")
+        require(len(x) == 144, f"{day}: 缺少144个计划购电时段")
+
+        physical_grid = x.planned_grid_kwh.to_numpy(float)
+
+        # 官方模板首列是 0:10-0:20，因此物理 slot2 放首列；
+        # 最后一列 0:00-0:10+1 放物理 slot1。
+        official_grid = np.r_[physical_grid[1:], physical_grid[0]]
+
+        plan_rows.append(
+            {
+                "date": day,
+                "grid": official_grid,
+                "total_grid": float(physical_grid.sum()),
+                "cost": float(x.planned_cost_yuan.sum()),
+            }
         )
 
-    plan_rows, battery_rows, emergency_rows = (
-        build_submission_tables(primary_dispatch)
+    # ---------- 充放电量 ----------
+    # 官方模板：每个日期固定6行；日期仅第一行填写。
+    battery_rows = []
+
+    for date in dates:
+        day = str(date.date())
+        x = ev[ev.date == day].sort_values("slot")
+        require(len(x) == 144, f"{day}: 实际执行数据不完整")
+
+        for block in range(6):
+            z = x.iloc[block * 24:(block + 1) * 24]
+
+            battery_rows.append(
+                {
+                    "date": day if block == 0 else None,
+                    "interval": OFFICIAL_BATTERY_INTERVALS[block],
+                    "charge_kwh": float(z.charge_kwh.sum()),
+                    "discharge_kwh": float(z.discharge_kwh.sum()),
+                    # 严格沿用官方模板：第一行0:00，第二行24:00。
+                    "time": 0.0 if block == 0 else ("24:00" if block == 1 else None),
+                    "storage_kwh": (
+                        float(x.storage_start_kwh.iloc[0])
+                        if block == 0
+                        else (
+                            float(x.storage_end_kwh.iloc[-1])
+                            if block == 1
+                            else None
+                        )
+                    ),
+                }
+            )
+
+    # ---------- 紧急购电量 ----------
+    # 官方表4：同一天多个事件时，日期只在第一条出现。
+    # 模板示例为每个日期预留3行，因此每日至少保留3行；
+    # 超过3个事件时自动扩展。
+    raw_events = emergency_events(ev)
+    emergency_rows = []
+
+    for date in dates:
+        day = str(date.date())
+        events = raw_events[raw_events.date == day].reset_index(drop=True)
+        row_count = max(3, len(events))
+
+        for j in range(row_count):
+            if j < len(events):
+                interval = str(events.loc[j, "interval"])
+                amount = float(events.loc[j, "emergency_kwh"])
+            else:
+                interval = None
+                amount = None
+
+            emergency_rows.append(
+                {
+                    "date": day if j == 0 else None,
+                    "interval": interval,
+                    "emergency_kwh": amount,
+                    "is_last_for_day": j == row_count - 1,
+                }
+            )
+
+    return plan_rows, battery_rows, emergency_rows
+
+
+def export_result2(template_path, output_path, primary_dispatch):
+    """从官方空模板生成最终 result2.xlsx，不修改官方表头和工作表名称。"""
+    template_path = Path(template_path).resolve()
+    output_path = Path(output_path).resolve()
+
+    require(template_path.exists(), f"Missing result2 template: {template_path}")
+    require(template_path != output_path, "禁止直接覆盖官方 result2.xlsx 空模板")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(template_path, output_path)
+
+    wb = load_workbook(output_path)
+    require(
+        wb.sheetnames == OFFICIAL_SHEETS,
+        f"官方 result2.xlsx 工作表应严格为 {OFFICIAL_SHEETS}，实际为 {wb.sheetnames}",
     )
 
+    plan_rows, battery_rows, emergency_rows = build_submission_tables(primary_dispatch)
+
+    # --------------------------------------------------------
+    # 1) 计划购电量：官方模板本身已经有334个日期行
+    # --------------------------------------------------------
+    ws = wb["计划购电量"]
+    date_col, interval_cols, total_col, cost_col = _official_plan_layout(ws)
+
+    require(ws.max_row >= 335, "官方计划购电量模板缺少 334 个日期行")
+
+    expected_dates = pd.date_range(EVALUATION_START, EVALUATION_END, freq="D")
+
+    for i, (date, item) in enumerate(zip(expected_dates, plan_rows), start=2):
+        # 日期由官方模板提供，不自行改写。
+        require(
+            _as_date_string(ws.cell(i, date_col).value) == str(date.date()),
+            f"计划购电量第{i}行官方日期异常",
+        )
+
+        for value, col in zip(item["grid"], interval_cols):
+            ws.cell(i, col).value = float(value)
+
+        ws.cell(i, total_col).value = float(item["total_grid"])
+        ws.cell(i, cost_col).value = float(item["cost"])
+
+    # --------------------------------------------------------
+    # 2) 充放电量：按官方6行/日的格式扩展至334天
+    # --------------------------------------------------------
+    ws = wb["充放电量"]
+    _official_battery_layout(ws)
+
+    # 先保存官方第一个完整6行日期块的样式。
+    battery_styles = [
+        _snapshot_row_style(ws, row, 6)
+        for row in range(2, 8)
+    ]
+
+    if ws.max_row > 1:
+        ws.delete_rows(2, ws.max_row - 1)
+
+    for idx, item in enumerate(battery_rows):
+        row = idx + 2
+        block = idx % 6
+        _apply_row_style(ws, row, battery_styles[block])
+
+        if item["date"] is not None:
+            ws.cell(row, 1).value = pd.Timestamp(item["date"]).to_pydatetime()
+        else:
+            ws.cell(row, 1).value = None
+
+        ws.cell(row, 2).value = item["interval"]
+        ws.cell(row, 3).value = float(item["charge_kwh"])
+        ws.cell(row, 4).value = float(item["discharge_kwh"])
+        ws.cell(row, 5).value = item["time"]
+        ws.cell(row, 6).value = item["storage_kwh"]
+
+    # --------------------------------------------------------
+    # 3) 紧急购电量：日期仅每组第一行出现；无应急时留空
+    # --------------------------------------------------------
+    ws = wb["紧急购电量"]
+    _official_emergency_layout(ws)
+
+    emergency_styles = {
+        "first": _snapshot_row_style(ws, 2, 3),
+        "middle": _snapshot_row_style(ws, 3, 3),
+        "last": _snapshot_row_style(ws, 4, 3),
+    }
+
+    if ws.max_row > 1:
+        ws.delete_rows(2, ws.max_row - 1)
+
+    group_position = 0
+    for idx, item in enumerate(emergency_rows):
+        row = idx + 2
+
+        # 根据当前日期组内位置选择官方示例行样式。
+        if item["date"] is not None:
+            group_position = 0
+
+        if group_position == 0 and not item["is_last_for_day"]:
+            style = emergency_styles["first"]
+        elif item["is_last_for_day"]:
+            style = emergency_styles["last"]
+        else:
+            style = emergency_styles["middle"]
+
+        _apply_row_style(ws, row, style)
+
+        if item["date"] is not None:
+            ws.cell(row, 1).value = pd.Timestamp(item["date"]).to_pydatetime()
+        else:
+            ws.cell(row, 1).value = None
+
+        ws.cell(row, 2).value = item["interval"]
+        ws.cell(row, 3).value = item["emergency_kwh"]
+
+        group_position += 1
+        if item["is_last_for_day"]:
+            group_position = 0
+
+    wb.save(output_path)
+
+    return {
+        "status": "WRITTEN",
+        "plan_rows": len(plan_rows),
+        "battery_rows": len(battery_rows),
+        "emergency_rows": len(emergency_rows),
+        "template_mapping": "official shifted labels; same-day cyclic one-slot mapping",
+    }
+
+
+# ============================================================
+# 保存后的 Excel 独立核验
+# ============================================================
+
+def verify_result2(output_path, template_path, primary_dispatch):
+    output_path = Path(output_path).resolve()
+    template_path = Path(template_path).resolve()
+
+    require(output_path.exists(), f"Output workbook not found: {output_path}")
+
+    saved = load_workbook(output_path, data_only=True, read_only=False)
+    template = load_workbook(template_path, data_only=True, read_only=False)
+
+    require(
+        saved.sheetnames == OFFICIAL_SHEETS,
+        f"保存后的工作表名称/顺序改变: {saved.sheetnames}",
+    )
+    require(
+        template.sheetnames == OFFICIAL_SHEETS,
+        "传入的模板不是官方 result2.xlsx 三工作表结构",
+    )
+
+    plan_rows, battery_rows, emergency_rows = build_submission_tables(primary_dispatch)
     tol = CFG["tolerance"]
 
-    # ---------- 计划购电 ----------
-    ws = wb["计划购电量"]
+    # ---------- 计划购电量 ----------
+    ws = saved["计划购电量"]
+    tws = template["计划购电量"]
 
-    (
-        date_col,
-        interval_cols,
-        total_col,
-        cost_col,
-    ) = _plan_sheet_columns(ws)
+    date_col, interval_cols, total_col, cost_col = _official_plan_layout(ws)
+    _official_plan_layout(tws)
+
+    # 官方表头必须逐格保持不变。
+    for col in range(1, 148):
+        require(
+            ws.cell(1, col).value == tws.cell(1, col).value,
+            f"计划购电量表头被修改: col={col}",
+        )
 
     saved_grid_total = 0.0
     saved_cost_total = 0.0
 
     for i, expected in enumerate(plan_rows, start=2):
         require(
-            _as_date_string(
-                ws.cell(i, date_col).value
-            ) == expected["date"],
-            f"计划购电量 row {i}: date mismatch",
+            _as_date_string(ws.cell(i, date_col).value) == expected["date"],
+            f"计划购电量第{i}行日期错误",
+        )
+        require(
+            _as_date_string(ws.cell(i, date_col).value)
+            == _as_date_string(tws.cell(i, date_col).value),
+            f"计划购电量第{i}行日期与官方模板不一致",
         )
 
-        values = []
-
-        for col, _ in interval_cols:
-            value = ws.cell(i, col).value
-            require(
-                value is not None,
-                f"计划购电量 row {i}: blank interval cell",
-            )
-            values.append(float(value))
+        actual_grid = np.array(
+            [float(ws.cell(i, col).value) for col in interval_cols],
+            dtype=float,
+        )
 
         require(
-            np.allclose(
-                values,
-                expected["grid"],
-                rtol=0,
-                atol=tol,
-            ),
-            f"计划购电量 row {i}: 144-slot values mismatch",
+            np.allclose(actual_grid, expected["grid"], rtol=0, atol=tol),
+            f"计划购电量第{i}行144个时段与模型映射不一致",
         )
 
         close(
             ws.cell(i, total_col).value,
             expected["total_grid"],
-            f"计划购电量 row {i}: daily grid",
+            f"计划购电量第{i}行全天计划购电量",
             tol,
         )
         close(
             ws.cell(i, cost_col).value,
             expected["cost"],
-            f"计划购电量 row {i}: daily cost",
+            f"计划购电量第{i}行全天计划购电费",
             tol,
         )
 
-        saved_grid_total += sum(values)
-        saved_cost_total += float(
-            ws.cell(i, cost_col).value
+        saved_grid_total += float(actual_grid.sum())
+        saved_cost_total += float(ws.cell(i, cost_col).value)
+
+    # ---------- 充放电量 ----------
+    ws = saved["充放电量"]
+    tws = template["充放电量"]
+    _official_battery_layout(ws)
+
+    for col in range(1, 7):
+        require(
+            ws.cell(1, col).value == tws.cell(1, col).value,
+            f"充放电量表头被修改: col={col}",
         )
 
-    # ---------- 充放电 ----------
-    ws = wb["充放电量"]
-
-    (
-        date_col,
-        interval_col,
-        charge_col,
-        discharge_col,
-        time_col,
-        storage_col,
-    ) = _battery_sheet_columns(ws)
+    require(
+        ws.max_row == 1 + len(battery_rows),
+        f"充放电量行数错误: {ws.max_row}",
+    )
 
     saved_charge = 0.0
     saved_discharge = 0.0
 
     for i, expected in enumerate(battery_rows, start=2):
+        actual_date = _as_date_string(ws.cell(i, 1).value)
+        require(actual_date == expected["date"], f"充放电量第{i}行日期排版错误")
+
         require(
-            _as_date_string(
-                ws.cell(i, date_col).value
-            ) == expected["date"],
-            f"充放电量 row {i}: date mismatch",
+            _header_text(ws.cell(i, 2).value) == expected["interval"],
+            f"充放电量第{i}行时间段错误",
+        )
+        close(ws.cell(i, 3).value, expected["charge_kwh"], f"充放电量第{i}行充电量", tol)
+        close(ws.cell(i, 4).value, expected["discharge_kwh"], f"充放电量第{i}行放电量", tol)
+
+        expected_time = None if expected["time"] is None else (
+            "0:00" if expected["time"] == 0.0 else "24:00"
         )
         require(
-            str(ws.cell(i, interval_col).value).strip()
-            == expected["interval"],
-            f"充放电量 row {i}: interval mismatch",
+            _time_text(ws.cell(i, 5).value) == expected_time,
+            f"充放电量第{i}行时刻错误",
         )
-
-        close(
-            ws.cell(i, charge_col).value,
-            expected["charge_kwh"],
-            f"充放电量 row {i}: charge",
-            tol,
-        )
-        close(
-            ws.cell(i, discharge_col).value,
-            expected["discharge_kwh"],
-            f"充放电量 row {i}: discharge",
-            tol,
-        )
-
-        saved_time = ws.cell(i, time_col).value
-        expected_time = expected["time"]
-
-        if expected_time is None:
-            require(
-                saved_time is None
-                or str(saved_time).strip() == "",
-                f"充放电量 row {i}: unexpected time label",
-            )
-        else:
-            require(
-                str(saved_time).strip() == expected_time,
-                f"充放电量 row {i}: time label mismatch",
-            )
-
-        saved_storage = ws.cell(i, storage_col).value
 
         if expected["storage_kwh"] is None:
             require(
-                saved_storage is None
-                or str(saved_storage).strip() == "",
-                f"充放电量 row {i}: unexpected storage value",
+                ws.cell(i, 6).value is None,
+                f"充放电量第{i}行不应填写储电量",
             )
         else:
             close(
-                saved_storage,
+                ws.cell(i, 6).value,
                 expected["storage_kwh"],
-                f"充放电量 row {i}: storage",
+                f"充放电量第{i}行储电量",
                 tol,
             )
 
-        saved_charge += float(
-            ws.cell(i, charge_col).value
-        )
-        saved_discharge += float(
-            ws.cell(i, discharge_col).value
+        saved_charge += float(ws.cell(i, 3).value)
+        saved_discharge += float(ws.cell(i, 4).value)
+
+    # ---------- 紧急购电量 ----------
+    ws = saved["紧急购电量"]
+    tws = template["紧急购电量"]
+    _official_emergency_layout(ws)
+
+    for col in range(1, 4):
+        require(
+            ws.cell(1, col).value == tws.cell(1, col).value,
+            f"紧急购电量表头被修改: col={col}",
         )
 
-    # ---------- 紧急购电 ----------
-    ws = wb["紧急购电量"]
-
-    (
-        date_col,
-        interval_col,
-        amount_col,
-    ) = _emergency_sheet_columns(ws)
+    require(
+        ws.max_row == 1 + len(emergency_rows),
+        f"紧急购电量行数错误: {ws.max_row}",
+    )
 
     saved_emergency = 0.0
 
     for i, expected in enumerate(emergency_rows, start=2):
         require(
-            _as_date_string(
-                ws.cell(i, date_col).value
-            ) == expected["date"],
-            f"紧急购电量 row {i}: date mismatch",
-        )
-        require(
-            str(ws.cell(i, interval_col).value).strip()
-            == expected["interval"],
-            f"紧急购电量 row {i}: interval mismatch",
-        )
-        close(
-            ws.cell(i, amount_col).value,
-            expected["emergency_kwh"],
-            f"紧急购电量 row {i}: amount",
-            tol,
+            _as_date_string(ws.cell(i, 1).value) == expected["date"],
+            f"紧急购电量第{i}行日期排版错误",
         )
 
-        saved_emergency += float(
-            ws.cell(i, amount_col).value
-        )
+        actual_interval = ws.cell(i, 2).value
+        actual_amount = ws.cell(i, 3).value
 
-    ev = primary_dispatch[
-        primary_dispatch.evaluation
-    ]
+        if expected["interval"] is None:
+            require(actual_interval is None, f"紧急购电量第{i}行应为空时间段")
+            require(actual_amount is None, f"紧急购电量第{i}行应为空购电量")
+        else:
+            require(
+                _header_text(actual_interval) == expected["interval"],
+                f"紧急购电量第{i}行时间段错误",
+            )
+            close(
+                actual_amount,
+                expected["emergency_kwh"],
+                f"紧急购电量第{i}行购电量",
+                tol,
+            )
+            saved_emergency += float(actual_amount)
 
+    ev = primary_dispatch[primary_dispatch.evaluation]
+
+    # 循环平移只改变列位置，不得改变总量。
     close(
         saved_grid_total,
         ev.planned_grid_kwh.sum(),
-        "Saved workbook total planned purchase",
+        "最终Excel全天计划购电总量",
         1e-5,
     )
     close(
         saved_cost_total,
         ev.planned_cost_yuan.sum(),
-        "Saved workbook total planned cost",
+        "最终Excel计划购电总费用",
         1e-5,
     )
     close(
         saved_charge,
         ev.charge_kwh.sum(),
-        "Saved workbook total battery charge",
+        "最终Excel充电总量",
         1e-5,
     )
     close(
         saved_discharge,
         ev.discharge_kwh.sum(),
-        "Saved workbook total battery discharge",
+        "最终Excel放电总量",
         1e-5,
     )
     close(
         saved_emergency,
         ev.emergency_kwh.sum(),
-        "Saved workbook total emergency purchase",
+        "最终Excel紧急购电总量",
         1e-5,
     )
 
@@ -1939,21 +1746,12 @@ def verify_result2(output_path, primary_dispatch):
         "plan_rows": len(plan_rows),
         "battery_rows": len(battery_rows),
         "emergency_rows": len(emergency_rows),
-        "planned_purchase_kwh": float(
-            ev.planned_grid_kwh.sum()
-        ),
-        "emergency_purchase_kwh": float(
-            ev.emergency_kwh.sum()
-        ),
-        "planned_cost_yuan": float(
-            ev.planned_cost_yuan.sum()
-        ),
-        "emergency_cost_yuan": float(
-            ev.emergency_cost_yuan.sum()
-        ),
-        "total_cost_yuan": float(
-            ev.total_cost_yuan.sum()
-        ),
+        "planned_purchase_kwh": float(ev.planned_grid_kwh.sum()),
+        "emergency_purchase_kwh": float(ev.emergency_kwh.sum()),
+        "planned_cost_yuan": float(ev.planned_cost_yuan.sum()),
+        "emergency_cost_yuan": float(ev.emergency_cost_yuan.sum()),
+        "total_cost_yuan": float(ev.total_cost_yuan.sum()),
+        "template_mapping": "official shifted labels; same-day cyclic one-slot mapping",
     }
 
 
@@ -2113,6 +1911,7 @@ def main():
 
     check = verify_result2(
         output_path,
+        template_path,
         primary_dispatch,
     )
 
@@ -2181,6 +1980,8 @@ def main():
     )
     print("Physical/causal checks: PASS")
     print("Saved-XLSX verification: PASS")
+    print("Official template layout/header/date formatting: PRESERVED")
+    print("Plan time columns: official 0:10...0:10+1 cyclic mapping")
     print(f"Output: {output_path}")
     print("Generated artifacts: result2.xlsx only")
     print(f"Elapsed: {elapsed:.1f} seconds")
