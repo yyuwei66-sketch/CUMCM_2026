@@ -1,0 +1,20 @@
+{
+  "source_files": {
+    "附件1.xlsx": "66b87134f5ecccd68184d3539bb1293ef039f9e0fdd955a589b9bfa7f227c377",
+    "附件2.xlsx": "2e95fd446bfafa0d8c59577b5c2e2ea8b3f1def20dde54a3062556f4da9b4c72"
+  },
+  "days": 365,
+  "slots_per_day": 144,
+  "observations": 52560,
+  "input_columns": [
+    "date",
+    "slot",
+    "load_kw",
+    "pv_kw"
+  ],
+  "prices_source": "附件1.xlsx only; no attachment 3 or 4 fields are read",
+  "time_assumption": "sample at t represents average on [t-10min,t); provisional",
+  "source_numeric_missing": 0,
+  "numeric_imputation": false,
+  "negative_net_load_preserved": true
+}

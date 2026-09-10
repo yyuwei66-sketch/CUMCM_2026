@@ -1,0 +1,6 @@
+{
+  "report_sha256": "8244c13bf6f26f07b44185b7966b5715ee82c99231d2fbf74d5d3ae154ed78ab",
+  "source": "results/summary.json and full-precision CSV outputs",
+  "time_mapping": "PROVISIONAL",
+  "model_status": "feasible causal policy, surrogate planner optimal"
+}
