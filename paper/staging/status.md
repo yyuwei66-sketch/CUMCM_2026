@@ -33,7 +33,6 @@
 
 ---
 TODO：
-- 人工修改充放电关系图
 - 寻找物理支撑论文
-- [FIGURE_PENDING] 问题一新增"144时段充放电互斥验证图"（06_q1.tex 中 fig:q1-exclusivity，当前为占位框）。需要逐时段 $c_t,d_t$ 序列；q1/results/ 下目前只有 result1.xlsx 与三张汇总图，原 results/intermediate/dispatch_10min.csv、storage_states.csv 已不存在（q1/results/figures/draw.py 仍在引用这两个文件），需编程手重新导出该中间数据或直接出图，论文手不代为生成数值结果
-- 审核q1模型解释方法LP/MILP
+- q1敏感性分析
+- q1图片修改（？

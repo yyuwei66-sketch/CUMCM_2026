@@ -34,6 +34,189 @@
   \end{tabular}
 \end{table}
 
+\subsection*{问题二补充图}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figures/q2/05_top100_plateau.png}
+  \caption{联合网格搜索中验证集Net RMSE最优的Top100参数组合排序}
+  \label{fig:q2-top100}
+\end{figure}
+
+图\ref{fig:q2-top100}显示，按验证集Net RMSE排序后，前100个参数组合的误差从最优值到第100位的增幅不足0.6\%，进一步佐证了7.2节联合搜索给出的最优参数组合周围存在大范围的低误差平台，而非孤立尖峰。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figures/q2/06_W_cross_month.png}
+  \caption{不同滚动窗口$W$在开发期四个月份下的平均RMSE与最差月份RMSE}
+  \label{fig:q2-w-cross-month}
+\end{figure}
+
+图\ref{fig:q2-w-cross-month}显示，$W=60$在四个月平均RMSE和最差月份RMSE两项指标上均不劣于其余候选窗口，进一步支持了7.2节中$W=60$取得全局最优这一结论的跨月稳定性。
+
+
+\subsection*{问题二指定日期计划购电量与充放电量}
+
+\begin{table}[H]
+  \centering
+  \caption{微网在2025年3月20日指定时间段的购电量及全天的购电量和购电费}
+  \label{tab:q2-purchase-0320}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) \\
+    \hline
+    10:00--10:10 & 0.00 & 12:00--12:10 & 643.15 & 14:00--14:10 & 0.00 \\
+    \hline
+    16:00--16:10 & 497.04 & 18:00--18:10 & 694.82 & 20:00--20:10 & 0.00 \\
+    \hline
+    \multicolumn{2}{|c|}{全天购电量(kWh)} & \multicolumn{2}{c|}{69{,}770.39} & \multicolumn{2}{c|}{全天购电费(元)：41{,}953.36} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{储能设备在2025年3月20日指定时间段的充放电量及0:00和24:00的储电量}
+  \label{tab:q2-storage-0320}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 充电量(kWh) & 放电量(kWh) & 时间段 & 充电量(kWh) & 放电量(kWh) \\
+    \hline
+    0:00--4:00 & 4{,}500.00 & 0.00 & 4:00--8:00 & 833.33 & 5{,}761.22 \\
+    \hline
+    8:00--12:00 & 6{,}008.51 & 2{,}853.95 & 12:00--16:00 & 5{,}123.74 & 401.95 \\
+    \hline
+    16:00--20:00 & 0.00 & 5{,}689.13 & 20:00--24:00 & 5{,}333.33 & 2{,}950.87 \\
+    \hline
+    \multicolumn{3}{|c|}{0:00 储电量(kWh)：6{,}000.00} & \multicolumn{3}{c|}{24:00 储电量(kWh)：6{,}000.00} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{微网在2025年6月21日指定时间段的购电量及全天的购电量和购电费}
+  \label{tab:q2-purchase-0621}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) \\
+    \hline
+    10:00--10:10 & 0.00 & 12:00--12:10 & 0.00 & 14:00--14:10 & 0.00 \\
+    \hline
+    16:00--16:10 & 207.84 & 18:00--18:10 & 0.00 & 20:00--20:10 & 0.00 \\
+    \hline
+    \multicolumn{2}{|c|}{全天购电量(kWh)} & \multicolumn{2}{c|}{37{,}385.68} & \multicolumn{2}{c|}{全天购电费(元)：21{,}411.20} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{储能设备在2025年6月21日指定时间段的充放电量及0:00和24:00的储电量}
+  \label{tab:q2-storage-0621}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 充电量(kWh) & 放电量(kWh) & 时间段 & 充电量(kWh) & 放电量(kWh) \\
+    \hline
+    0:00--4:00 & 0.00 & 0.00 & 4:00--8:00 & 0.00 & 4{,}320.00 \\
+    \hline
+    8:00--12:00 & 5{,}474.11 & 0.00 & 12:00--16:00 & 5{,}192.56 & 0.00 \\
+    \hline
+    16:00--20:00 & 0.00 & 6{,}059.37 & 20:00--24:00 & 5{,}333.33 & 2{,}580.63 \\
+    \hline
+    \multicolumn{3}{|c|}{0:00 储电量(kWh)：6{,}000.00} & \multicolumn{3}{c|}{24:00 储电量(kWh)：6{,}000.00} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{微网在2025年9月23日指定时间段的购电量及全天的购电量和购电费}
+  \label{tab:q2-purchase-0923}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) \\
+    \hline
+    10:00--10:10 & 0.00 & 12:00--12:10 & 474.42 & 14:00--14:10 & 0.00 \\
+    \hline
+    16:00--16:10 & 577.31 & 18:00--18:10 & 799.97 & 20:00--20:10 & 5.30 \\
+    \hline
+    \multicolumn{2}{|c|}{全天购电量(kWh)} & \multicolumn{2}{c|}{72{,}031.58} & \multicolumn{2}{c|}{全天购电费(元)：45{,}093.21} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{储能设备在2025年9月23日指定时间段的充放电量及0:00和24:00的储电量}
+  \label{tab:q2-storage-0923}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 充电量(kWh) & 放电量(kWh) & 时间段 & 充电量(kWh) & 放电量(kWh) \\
+    \hline
+    0:00--4:00 & 4{,}500.00 & 0.00 & 4:00--8:00 & 833.33 & 5{,}769.18 \\
+    \hline
+    8:00--12:00 & 5{,}897.35 & 2{,}870.82 & 12:00--16:00 & 5{,}299.11 & 429.13 \\
+    \hline
+    16:00--20:00 & 0.00 & 5{,}764.12 & 20:00--24:00 & 5{,}333.33 & 2{,}875.88 \\
+    \hline
+    \multicolumn{3}{|c|}{0:00 储电量(kWh)：6{,}000.00} & \multicolumn{3}{c|}{24:00 储电量(kWh)：6{,}000.00} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{微网在2025年12月21日指定时间段的购电量及全天的购电量和购电费}
+  \label{tab:q2-purchase-1221}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) \\
+    \hline
+    10:00--10:10 & 0.00 & 12:00--12:10 & 1{,}008.58 & 14:00--14:10 & 0.00 \\
+    \hline
+    16:00--16:10 & 869.79 & 18:00--18:10 & 722.50 & 20:00--20:10 & 0.00 \\
+    \hline
+    \multicolumn{2}{|c|}{全天购电量(kWh)} & \multicolumn{2}{c|}{98{,}545.27} & \multicolumn{2}{c|}{全天购电费(元)：63{,}244.70} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{储能设备在2025年12月21日指定时间段的充放电量及0:00和24:00的储电量}
+  \label{tab:q2-storage-1221}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    时间段 & 充电量(kWh) & 放电量(kWh) & 时间段 & 充电量(kWh) & 放电量(kWh) \\
+    \hline
+    0:00--4:00 & 4{,}500.00 & 0.00 & 4:00--8:00 & 1{,}666.67 & 1{,}508.33 \\
+    \hline
+    8:00--12:00 & 5{,}833.33 & 7{,}806.67 & 12:00--16:00 & 8{,}256.39 & 2{,}772.68 \\
+    \hline
+    16:00--20:00 & 0.00 & 5{,}644.81 & 20:00--24:00 & 5{,}333.33 & 2{,}995.19 \\
+    \hline
+    \multicolumn{3}{|c|}{0:00 储电量(kWh)：6{,}000.00} & \multicolumn{3}{c|}{24:00 储电量(kWh)：6{,}000.00} \\
+    \hline
+  \end{tabular}
+\end{table}
+
 \section*{附录C\quad 代码}
 
 % 方式一：直接内嵌代码（适合较短脚本，或需要展示核心片段时）
