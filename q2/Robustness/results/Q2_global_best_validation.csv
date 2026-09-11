@@ -1,0 +1,2 @@
+﻿W,load_id,pv_id,val_net_rmse,KL,KP,hL,hP,calL,calP,alphaL,alphaP
+60,232,172,392.6232299804688,3,2,H0_lag1,H2_lag1_lag7_mean7,weekday7,annual1,0.3,10.0
