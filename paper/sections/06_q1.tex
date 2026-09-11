@@ -6,8 +6,8 @@
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.85\linewidth]{figures/q1/fig1_input_power_price.png}
-  \caption{典型日负载、光伏预测功率与购电电价}
+  \includegraphics[width=0.85\linewidth]{figures/q1/01_load_pv.png}
+  \caption{典型日输入：电价、小区负载与光伏预测功率}
   \label{fig:q1-load-pv}
 \end{figure}
 
@@ -56,26 +56,26 @@ $$
 
 为说明数值求解过程，将连续变量按
 $$
-\bm{x}=(\bm{g}^{\mathsf T},\bm{c}^{\mathsf T},\bm{d}^{\mathsf T},\bm{w}^{\mathsf T},\bm{E}^{\mathsf T})^{\mathsf T}
+\bm{x}=(g_1,\ldots,g_{144},c_1,\ldots,c_{144},d_1,\ldots,d_{144},w_1,\ldots,w_{144},E_0,\ldots,E_{144})=(\bm{g}^{\mathsf T},\bm{c}^{\mathsf T},\bm{d}^{\mathsf T},\bm{w}^{\mathsf T},\bm{E}^{\mathsf T})^{\mathsf T}
 $$
-堆叠，其中 $\bm{g},\bm{c},\bm{d},\bm{w}\in\mathbb{R}^{144}$，而 $\bm{E}=(E_0,\ldots,E_{144})^{\mathsf T}\in\mathbb{R}^{145}$。前四类变量对应144个10分钟区间；储电量还须记录日初状态 $E_0$ 及每个区间结束后的 $E_1,\ldots,E_{144}$，故共有145个状态量。因而连续部分共有 $4\times144+145=721$ 个分量。将约束1逐行改写为 $g_t-c_t+d_t-w_t=L_t-V_t$，将约束2改写为 $-\eta_cc_t+d_t/\eta_d-E_{t-1}+E_t=0$，可分别组成144行，合并为 $A_{\mathrm{eq}}\bm{x}=\bm{b}_{\mathrm{eq}}$，其中 $A_{\mathrm{eq}}\in\mathbb{R}^{288\times721}$；容量、功率及初末状态均写入变量边界 $\bm{l}\le\bm{x}\le\bm{u}$。于是连续子问题为
+堆叠，其中 $\bm{g},\bm{c},\bm{d},\bm{w}\in\mathbb{R}^{144}$，而 $\bm{E}=(E_0,\ldots,E_{144})^{\mathsf T}\in\mathbb{R}^{145}$。前四类变量对应144个10分钟区间；储电量还须记录日初状态 $E_0$ 及每个区间结束后的 $E_1,\ldots,E_{144}$，故共有145个状态量。因而连续部分共有 $4\times144+145=721$ 个分量。
+
+将约束1改写为 $g_t-c_t+d_t-w_t=L_t-V_t$，约束2改写为 $-\eta_cc_t+d_t/\eta_d-E_{t-1}+E_t=0$，其中等式右边均为常数，左侧为变量$\bm{x}$的线性组合。据$t=1,2,\ldots,144$，两式分别组成144行，合并为 $A_{\mathrm{eq}}\bm{x}=\bm{b}_{\mathrm{eq}}$，其中 $A_{\mathrm{eq}}\in\mathbb{R}^{288\times721}$；容量、功率及初末状态均写入变量边界 $\bm{l}\le\bm{x}\le\bm{u}$，其中$\bm{l}$、$\bm{u}$为上下界向量。于是连续子问题为
 $$
 \min_{\bm{x}}\ \bm{f}^{\mathsf T}\bm{x},\qquad
 A_{\mathrm{eq}}\bm{x}=\bm{b}_{\mathrm{eq}},\qquad
 \bm{l}\le\bm{x}\le\bm{u},
 $$
-其中仅 $g_t$ 对应的目标系数为 $p_t$，其余系数为零。
+其中$\bm{f}=(p_1,\ldots,p_{144},0,\ldots,0)^{\mathsf T}$。
 
-本次实现的LP并非在保留模式约束的前提下将 $z_t\in\{0,1\}$ 改为 $z_t\in[0,1]$，而是先整体移除约束5及其二元变量，再求解上述721变量模型；这是一个有效但较宽松的LP松弛。前一种标准连续松弛仍保留 $c_t\le M_cz_t$、$d_t\le M_d(1-z_t)$，并会额外包含144个连续 $z_t$（或消去 $z_t$ 后得到 $c_t/M_c+d_t/M_d\le1$），与本次程序不同。SciPy以 \texttt{linprog(method='highs')} 将上述矩阵和边界传给HiGHS。HiGHS先进行预处理，再以单纯形或内点法求解：前者依据检验数更新可行基，后者满足原--对偶最优性条件；由于问题为线性凸规划，二者返回的可行最优解均为该LP的全局最优解。
+本次实现的LP先整体移除约束5及其二元变量，再求解上述721变量模型；SciPy以 \texttt{linprog(method='highs')} 将上述矩阵和边界传给HiGHS。HiGHS 首先对模型进行预处理，以识别可消除的变量和冗余约束，并对问题进行简化；随后由 HiGHS 根据模型特征自动选择 dual simplex 或 interior-point method 进行求解。由于所求问题为线性规划，其可行域为凸集，线性目标函数在满足最优性条件时所得的最优可行解即为该 LP 的全局最优解。
 
-求得 $\bm{x}^{\star}$ 后，逐时段检验是否同时有 $c_t^\star>\varepsilon$ 和 $d_t^\star>\varepsilon$。本次144个时段均未出现该情形，故可据每个时段的充、放电状态构造相应的二元 $z_t$，使 $\bm{x}^{\star}$ 同时满足原MILP的约束5。又因删除约束5后MILP可行域包含于LP可行域，最小化问题有 $F_{\mathrm{LP}}^\star\le F_{\mathrm{MILP}}^\star$；而 $\bm{x}^{\star}$ 已是MILP可行解，反向不等式亦成立，故两者最优值相等（均在数值容差范围内）。
-
-图\ref{fig:q1-exclusivity}给出144个时段逐时段的充、放电量，可见二者在任一时段均不同时为正，为上述互斥性检验提供了直接的可视化依据。
+求得 $\bm{x}$ 后，为符合约束5的充放电排斥限制，逐时段检验是否同时有 $c_t>\varepsilon$ 和 $d_t>\varepsilon$。经检验后，发现所有时段均未出现同时充电和放电的情况，如图\ref{fig:q1-exclusivity}所示。由此可据每个时段的充、放电状态构造相应的二元 $z_t$，使 $\bm{x}$ 同时满足原MILP的约束5。又因删除约束5后MILP可行域包含于LP可行域，最小化问题有 $F_{\mathrm{LP}}\le F_{\mathrm{MILP}}$；而 $\bm{x}$ 已是MILP可行解，反向不等式亦成立，故两者最优值相等。
 
 \begin{figure}[H]
   \centering
-  \FigPlaceholder{12}{6}{FIGURE\_PENDING：问题一144时段充放电互斥验证图，需要 $c_t$、$d_t$ 逐时段序列（当前未在 q1/results/ 下找到对应中间数据）；建议图型：144个时段为横轴的双向柱状图，充电量取正方向、放电量取负方向，零值时段留空，用以直观展示任一时段充放电不同时非零}
-  \caption{问题一144时段充放电互斥验证}
+  \includegraphics[width=0.8\textwidth]{figures/q1/fig_q1_exclusivity.png}
+  \caption{144时段充放电互斥验证}
   \label{fig:q1-exclusivity}
 \end{figure}
 
