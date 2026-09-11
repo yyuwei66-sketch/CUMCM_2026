@@ -1,0 +1,5 @@
+﻿W,load_id,pv_id,val_net_rmse,KL,KP,hL,hP,calL,calP,alphaL,alphaP
+30,112,180,399.78033447265625,2,2,H0_lag1,H2_lag1_lag7_mean7,fri_sat,annual2,0.1,30.0
+60,232,172,392.6232299804688,3,2,H0_lag1,H2_lag1_lag7_mean7,weekday7,annual1,0.3,10.0
+90,283,179,394.62701416015625,3,2,H2_lag1_lag7_mean7,H2_lag1_lag7_mean7,fri_sat,annual2,3.0,10.0
+120,455,345,392.9381713867188,5,4,H0_lag1,H0_lag1,weekday7,annual2,0.1,1.0
