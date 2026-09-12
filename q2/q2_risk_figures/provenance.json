@@ -1,0 +1,13 @@
+{
+  "period": [
+    "2025-05-01",
+    "2025-08-31"
+  ],
+  "q_star": 0.85,
+  "source_sha256": {
+    "p2.py": "16e936a9f1e37e2761f49d0bc07ffdffe1fb24bb6967e07bf61c8a6333308f90",
+    "q2_actual_load_pv.csv": "a5194bfbfef875d15d382b2fba5d88bcbb330460cbc4ebf38df79168189c9dbf",
+    "q2_fixed_prices.csv": "9b11897f3585248cbd934c6988331fa8156611db87c9d9db7ad51adae43d76a7"
+  },
+  "mode": "embedded_verified_results"
+}
