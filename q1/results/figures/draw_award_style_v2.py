@@ -315,7 +315,6 @@ def fig1_input(d, out):
     ax.set_ylim(0, ymax * 1.18)
 
     add_day_night_background(ax)
-    add_period_header(ax)
 
     # 光伏 > 负荷区间
     surplus_mask = d["pv_kw"] > d["load_kw"]
@@ -359,7 +358,7 @@ def fig1_input(d, out):
     ax.annotate(
         f"负荷峰值\n约 {v_load:,.0f} kW\n({interval_text(i_load)})",
         xy=(t_load, v_load),
-        xytext=(max(t_load - 1.0, 1.0), v_load * 1.09),
+        xytext=(max(t_load - 1.8, 1.0), 6900),
         ha="right", va="bottom",
         fontsize=10.2, fontweight="bold", color=C_NAVY,
         arrowprops=dict(arrowstyle="-|>", color=C_NAVY, lw=1.0),
@@ -374,7 +373,7 @@ def fig1_input(d, out):
     ax.annotate(
         f"光伏峰值\n约 {v_pv:,.0f} kW\n({interval_text(i_pv)})",
         xy=(t_pv, v_pv),
-        xytext=(min(t_pv + 1.15, 19.3), v_pv * 1.02),
+        xytext=(min(t_pv + 2.0, 19.3), 6900),
         ha="left", va="bottom",
         fontsize=10.3, fontweight="bold", color="#B44912",
         arrowprops=dict(arrowstyle="-|>", color="#B44912", lw=1.0),
@@ -382,20 +381,29 @@ def fig1_input(d, out):
         zorder=21,
     )
 
-    # 主盈余区间标注
+    # 主盈余区间标注：严格采用 10 分钟输入区间的真实边界。
     longest = longest_interval(surplus_intervals)
     if longest is not None:
         a, b = longest
         mid = (a + b) / 2
+        bracket_y = ymax * 1.065
         ax.annotate(
-            f"光伏出力高于负荷\n{fmt_hhmm(a)}–{fmt_hhmm(b)}",
-            xy=(mid, ymax * 0.58),
-            xytext=(mid, ymax * 1.02),
-            ha="center", va="center",
-            fontsize=10.0, color="#8C5A00",
-            arrowprops=dict(arrowstyle="-|>", color="#9A6800", lw=1.0),
-            bbox=dict(boxstyle="round,pad=0.32", fc=BOX_ORANGE, ec=C_GOLD, alpha=0.97),
+            "",
+            xy=(a, bracket_y), xytext=(b, bracket_y),
+            arrowprops=dict(arrowstyle="<->", color="#9A6800", lw=1.25,
+                            shrinkA=0, shrinkB=0),
             zorder=20,
+        )
+        ax.plot([a, a], [bracket_y * 0.985, bracket_y * 1.015],
+                color="#9A6800", lw=1.05, zorder=20)
+        ax.plot([b, b], [bracket_y * 0.985, bracket_y * 1.015],
+                color="#9A6800", lw=1.05, zorder=20)
+        ax.text(
+            mid, bracket_y * 1.008,
+            f"光伏出力高于负荷\n{fmt_hhmm(a)}–{fmt_hhmm(b)}",
+            ha="center", va="bottom", fontsize=10.0, color="#8C5A00",
+            bbox=dict(boxstyle="round,pad=0.28", fc=BOX_ORANGE,
+                      ec=C_GOLD, alpha=0.97), zorder=20,
         )
 
     # 图例和角标信息
@@ -420,7 +428,6 @@ def fig1_input(d, out):
     ax.set_ylabel("功率 / kW")
     ax.yaxis.set_major_locator(MultipleLocator(1000))
     setup_axes(ax)
-    ax.set_title("图1  典型日输入：购电电价、小区负荷与光伏预测功率", pad=14)
 
     fig.subplots_adjust(left=0.08, right=0.90, top=0.90, bottom=0.10)
     save_figure(fig, out)
