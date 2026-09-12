@@ -144,11 +144,24 @@ def baseline2_deterministic_scenario(day, hour, pred_load, forecast, load, first
     return ((load_center - pv_center) * DT)[None, :], np.ones(1)
 
 
-def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights=None):
+def solve_problem(
+    a, p, initial, fixed=None, lock_from=None, risk=False, weights=None,
+    terminal_target_kwh=None, terminal_penalty_yuan_per_kwh=0.0,
+    terminal_hard=True,
+):
     a, p = np.asarray(a, float), np.asarray(p, float)
     s, n = a.shape
     h0, u0, v0 = 4*n + 1, 4*n + 1 + s*n, 4*n + 1 + s*n + n
-    m = v0 + n
+    base_m = v0 + n
+    # Preserve the original hard 6000-kWh terminal condition by default.
+    # Q4 can opt into a free terminal state with a soft deviation penalty.
+    if terminal_target_kwh is None and terminal_hard:
+        terminal_target_kwh = CFG["eterm"]
+    require(terminal_penalty_yuan_per_kwh >= 0, "终点偏离惩罚系数不能为负")
+    use_soft_terminal = terminal_target_kwh is not None and not terminal_hard
+    dev_plus = base_m if use_soft_terminal else None
+    dev_minus = base_m + 1 if use_soft_terminal else None
+    m = base_m + 2 if use_soft_terminal else base_m
     obj = np.zeros(m)
     if fixed is None: obj[:n] = p
     if weights is None:
@@ -156,22 +169,38 @@ def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights
     weights = np.asarray(weights, float)
     require(len(weights) == s and np.isclose(weights.sum(), 1), "情景权重不合法")
     obj[h0:u0] = np.repeat(weights, n) * np.tile(CFG["emergency"] * p, s)
+    if use_soft_terminal:
+        obj[dev_plus] = terminal_penalty_yuan_per_kwh
+        obj[dev_minus] = terminal_penalty_yuan_per_kwh
     lo, hi = np.zeros(m), np.full(m, np.inf)
     lo[n:2*n], hi[n:2*n] = 0, CFG["pmax_c"] * DT
     lo[2*n:3*n], hi[2*n:3*n] = 0, CFG["pmax_d"] * DT
     lo[3*n:4*n+1], hi[3*n:4*n+1] = CFG["emin"], CFG["emax"]
-    lo[3*n] = hi[3*n] = initial; lo[4*n] = hi[4*n] = CFG["eterm"]
+    lo[3*n] = hi[3*n] = initial
+    if terminal_hard:
+        lo[4*n] = hi[4*n] = float(terminal_target_kwh)
+    elif use_soft_terminal:
+        lo[dev_plus:] = 0.0
     t = np.arange(n)
     eq = coo_matrix((np.r_[-CFG["eta_c"]*np.ones(n), np.ones(n)/CFG["eta_d"], -np.ones(n), np.ones(n)],
                      (np.tile(t, 4), np.r_[n+t, 2*n+t, 3*n+t, 3*n+t+1])), shape=(n, m)).tocsr()
+    if use_soft_terminal:
+        # E_end - d_plus + d_minus = target, minimizing d_plus+d_minus.
+        term = coo_matrix((np.array([1.0, -1.0, 1.0]),
+                           (np.zeros(3), np.array([4*n, dev_plus, dev_minus]))),
+                          shape=(1, m)).tocsr()
+        eq = vstack([eq, term]).tocsr()
     if fixed is not None:
         baseline_plan = np.asarray(fixed, float)
         ge = coo_matrix((np.r_[np.ones(n), -np.ones(n), np.ones(n)],
                          (np.r_[t, t, t], np.r_[t, u0+t, v0+t])), shape=(n, m)).tocsr()
         eq, eq_rhs = vstack([eq, ge]).tocsr(), np.r_[np.zeros(n), baseline_plan]
+        if use_soft_terminal:
+            eq_rhs = np.r_[np.zeros(n), float(terminal_target_kwh), baseline_plan]
         obj[u0:v0], obj[v0:] = CFG["up"] * p, CFG["down"] * p
         if lock_from is not None: lo[lock_from:n] = hi[lock_from:n] = baseline_plan[lock_from:]
-    else: eq_rhs = np.zeros(n)
+    else:
+        eq_rhs = np.r_[np.zeros(n), float(terminal_target_kwh)] if use_soft_terminal else np.zeros(n)
     rows = np.arange(s*n)
     ub = coo_matrix((np.r_[-np.ones(s*n), np.ones(s*n), -np.ones(s*n), -np.ones(s*n)],
                      (np.tile(rows, 4), np.r_[np.tile(t, s), n+np.tile(t, s), 2*n+np.tile(t, s), h0+rows])), shape=(s*n, m)).tocsr()
