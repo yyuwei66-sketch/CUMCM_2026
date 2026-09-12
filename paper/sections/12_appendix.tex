@@ -34,26 +34,6 @@
   \end{tabular}
 \end{table}
 
-\subsection*{问题二补充图}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/q2/05_top100_plateau.png}
-  \caption{联合网格搜索中验证集Net RMSE最优的Top100参数组合排序}
-  \label{fig:q2-top100}
-\end{figure}
-
-图\ref{fig:q2-top100}显示，按验证集Net RMSE排序后，前100个参数组合的误差从最优值到第100位的增幅不足0.6\%，进一步佐证了7.2节联合搜索给出的最优参数组合周围存在大范围的低误差平台，而非孤立尖峰。
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/q2/06_W_cross_month.png}
-  \caption{不同滚动窗口$W$在开发期四个月份下的平均RMSE与最差月份RMSE}
-  \label{fig:q2-w-cross-month}
-\end{figure}
-
-图\ref{fig:q2-w-cross-month}显示，$W=60$在四个月平均RMSE和最差月份RMSE两项指标上均不劣于其余候选窗口，进一步支持了7.2节中$W=60$取得全局最优这一结论的跨月稳定性。
-
 
 \subsection*{问题二指定日期计划购电量与充放电量}
 
