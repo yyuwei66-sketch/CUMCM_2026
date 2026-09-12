@@ -66,7 +66,7 @@ A_{\mathrm{eq}}x=b_{\mathrm{eq}},
 \qquad
 l\le x\le u.
 \]
-其中，$u$ 和 $l$ 分别表示变量的上界和下界，$A_{\mathrm{eq}}\in\mathbb{R}^{288\times721}$，
+其中，$A_{\mathrm{eq}}\in\mathbb{R}^{288\times721}$，$f=\left(p_1,p_2,\ldots,p_{144},0,0,\ldots,0\right)^\top$。
 由144条逐时段供需平衡约束与144条储能状态更新约束构成。
 初末储电量约束 $E_0=E_{144}=6000$
 通过相应变量上下界固定，即
@@ -138,7 +138,7 @@ $L_t+c_t+w_t-g_t-V_t-d_t=0$，
 \max_t\alpha_t=1.2561.
 \]
 原始与对偶目标值之差的绝对值约为
-$7.28\times10^{-12}\,\mathrm{元}$，
+$7.28\times10^{-12}\,\text{元}$，
 且驻点条件及互补松弛条件的残差均在数值容差内，
 因此上述对偶解可作为数值最优性证书。
 由 $\alpha_t>0$ 与 $\alpha_t w_t=0$ 可知，
