@@ -21,6 +21,7 @@ DT = 1.0 / 6.0
 CFG = {
     "eta_c": 0.9, "eta_d": 0.9, "emin": 1200.0, "emax": 10800.0,
     "e0": 6000.0, "eterm": 6000.0, "pmax_c": 5000.0, "pmax_d": 5000.0,
+    "terminal_penalty": 0.45,
     "emergency": 5.0, "up": 1.5, "down": 0.5, "history_days": 28,
     "half_life": 14.0, "error_scale": 0.25,
     "tol": 1e-6,
@@ -144,63 +145,43 @@ def baseline2_deterministic_scenario(day, hour, pred_load, forecast, load, first
     return ((load_center - pv_center) * DT)[None, :], np.ones(1)
 
 
-def solve_problem(
-    a, p, initial, fixed=None, lock_from=None, risk=False, weights=None,
-    terminal_target_kwh=None, terminal_penalty_yuan_per_kwh=0.0,
-    terminal_hard=True,
-):
+def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights=None):
     a, p = np.asarray(a, float), np.asarray(p, float)
     s, n = a.shape
     h0, u0, v0 = 4*n + 1, 4*n + 1 + s*n, 4*n + 1 + s*n + n
-    base_m = v0 + n
-    # Preserve the original hard 6000-kWh terminal condition by default.
-    # Q4 can opt into a free terminal state with a soft deviation penalty.
-    if terminal_target_kwh is None and terminal_hard:
-        terminal_target_kwh = CFG["eterm"]
-    require(terminal_penalty_yuan_per_kwh >= 0, "终点偏离惩罚系数不能为负")
-    use_soft_terminal = terminal_target_kwh is not None and not terminal_hard
-    dev_plus = base_m if use_soft_terminal else None
-    dev_minus = base_m + 1 if use_soft_terminal else None
-    m = base_m + 2 if use_soft_terminal else base_m
+    dev_plus, dev_minus = v0 + n, v0 + n + 1
+    m = dev_minus + 1
     obj = np.zeros(m)
     if fixed is None: obj[:n] = p
+    obj[dev_plus] = obj[dev_minus] = CFG["terminal_penalty"]
     if weights is None:
         weights = np.full(s, 1 / s)
     weights = np.asarray(weights, float)
     require(len(weights) == s and np.isclose(weights.sum(), 1), "情景权重不合法")
     obj[h0:u0] = np.repeat(weights, n) * np.tile(CFG["emergency"] * p, s)
-    if use_soft_terminal:
-        obj[dev_plus] = terminal_penalty_yuan_per_kwh
-        obj[dev_minus] = terminal_penalty_yuan_per_kwh
     lo, hi = np.zeros(m), np.full(m, np.inf)
     lo[n:2*n], hi[n:2*n] = 0, CFG["pmax_c"] * DT
     lo[2*n:3*n], hi[2*n:3*n] = 0, CFG["pmax_d"] * DT
     lo[3*n:4*n+1], hi[3*n:4*n+1] = CFG["emin"], CFG["emax"]
     lo[3*n] = hi[3*n] = initial
-    if terminal_hard:
-        lo[4*n] = hi[4*n] = float(terminal_target_kwh)
-    elif use_soft_terminal:
-        lo[dev_plus:] = 0.0
     t = np.arange(n)
     eq = coo_matrix((np.r_[-CFG["eta_c"]*np.ones(n), np.ones(n)/CFG["eta_d"], -np.ones(n), np.ones(n)],
                      (np.tile(t, 4), np.r_[n+t, 2*n+t, 3*n+t, 3*n+t+1])), shape=(n, m)).tocsr()
-    if use_soft_terminal:
-        # E_end - d_plus + d_minus = target, minimizing d_plus+d_minus.
-        term = coo_matrix((np.array([1.0, -1.0, 1.0]),
-                           (np.zeros(3), np.array([4*n, dev_plus, dev_minus]))),
-                          shape=(1, m)).tocsr()
-        eq = vstack([eq, term]).tocsr()
     if fixed is not None:
         baseline_plan = np.asarray(fixed, float)
         ge = coo_matrix((np.r_[np.ones(n), -np.ones(n), np.ones(n)],
                          (np.r_[t, t, t], np.r_[t, u0+t, v0+t])), shape=(n, m)).tocsr()
         eq, eq_rhs = vstack([eq, ge]).tocsr(), np.r_[np.zeros(n), baseline_plan]
-        if use_soft_terminal:
-            eq_rhs = np.r_[np.zeros(n), float(terminal_target_kwh), baseline_plan]
-        obj[u0:v0], obj[v0:] = CFG["up"] * p, CFG["down"] * p
+        obj[u0:v0], obj[v0:dev_plus] = CFG["up"] * p, CFG["down"] * p
         if lock_from is not None: lo[lock_from:n] = hi[lock_from:n] = baseline_plan[lock_from:]
-    else:
-        eq_rhs = np.r_[np.zeros(n), float(terminal_target_kwh)] if use_soft_terminal else np.zeros(n)
+    else: eq_rhs = np.zeros(n)
+    # E_terminal - target = dev_plus - dev_minus.
+    terminal_row = coo_matrix((np.array([1.0, -1.0, 1.0]),
+                               (np.array([0, 0, 0]),
+                                np.array([4*n, dev_plus, dev_minus]))),
+                              shape=(1, m)).tocsr()
+    eq = vstack([eq, terminal_row]).tocsr()
+    eq_rhs = np.r_[eq_rhs, CFG["eterm"]]
     rows = np.arange(s*n)
     ub = coo_matrix((np.r_[-np.ones(s*n), np.ones(s*n), -np.ones(s*n), -np.ones(s*n)],
                      (np.tile(rows, 4), np.r_[np.tile(t, s), n+np.tile(t, s), 2*n+np.tile(t, s), h0+rows])), shape=(s*n, m)).tocsr()
@@ -336,10 +317,12 @@ def main():
     result={}
     for name,kind in strategies.items():
         result[name]=run_strategy(name,kind,dates,load,pv,prices,forecasts,pred_load,first)
-    chosen=result["主模型：概率风险更新"]; export_result3(ROOT/"Data/附件5/result3.xlsx", args.excel, chosen[0], chosen[1])
+    chosen=result["主模型：概率风险更新"]
+    export_result3(ROOT/"Data/附件5/result3.xlsx", args.excel, chosen[0], chosen[1])
     summary=[]
     for name,(d,x,_) in result.items():
         y=d[d.date>=str(EVAL_START)]; summary.append({"strategy":name,"total_cost":float(y.total_cost.sum()),"emergency_kwh":float(y.emergency_kwh.sum()),"check":verify(x)})
-    print(json.dumps({"status":"PASS","result3":str(args.excel.resolve()),"parameters":{"history_days":CFG["history_days"],"half_life":CFG["half_life"],"error_scale":CFG["error_scale"]},"summary":summary,"seconds":round(time.perf_counter()-t,2)},ensure_ascii=False,indent=2))
+    report={"status":"PASS","result3":str(args.excel.resolve()),"parameters":{"history_days":CFG["history_days"],"half_life":CFG["half_life"],"error_scale":CFG["error_scale"],"terminal_target_kwh":CFG["eterm"],"terminal_penalty_yuan_per_kwh":CFG["terminal_penalty"]},"summary":summary,"seconds":round(time.perf_counter()-t,2)}
+    print(json.dumps(report,ensure_ascii=False,indent=2))
 
 if __name__=="__main__": main()

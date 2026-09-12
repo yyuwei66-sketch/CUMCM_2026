@@ -11,13 +11,13 @@
 % 新增/调整章节顺序时，只需要在下方的装配区调整 \input 顺序，
 % 不需要搬动章节内容本身。
 % ------------------------------------------------------------
-\documentclass[12pt, a4paper, scheme=chinese, fontset=windows]{ctexart}
+\documentclass[12pt, a4paper, scheme=chinese, fontset=fandol]{ctexart}
 
 % ---------------- 字体 ----------------
 % 全文正文字体固定为宋体；宋体本身没有真正的粗体字重，\bfseries 默认只是
 % "伪粗体"（描边加粗），标题/强调文字观感很弱。这里显式把粗体字重指向黑体，
 % 使 \bfseries、\textbf{} 在保持宋体正文的同时获得清晰可辨的粗体效果。
-\setCJKmainfont[BoldFont=SimHei]{SimSun}
+\setCJKmainfont[BoldFont=FandolHei-Bold.otf]{FandolSong-Regular.otf}
 
 % ---------------- 页面与基础排版 ----------------
 \usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.4cm, right=2.4cm]{geometry}
