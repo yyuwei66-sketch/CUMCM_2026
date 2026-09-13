@@ -357,7 +357,9 @@ def export_result3(template_path, output_path, daily, detail):
         for i,date in enumerate(dates,2):
             x=detail[detail.date.eq(date)].sort_values("slot")
             ws.cell(i,1).value=pd.Timestamp(date).to_pydatetime()
-            for j,v in enumerate(x[col].to_numpy(float),2): ws.cell(i,j).value=float(v)
+            values=x[col].to_numpy(float)
+            # 官方模板按 slot2,...,slot144,slot1 排列时间列。
+            for j,v in enumerate(np.r_[values[1:],values[:1]],2): ws.cell(i,j).value=float(v)
             ws.cell(i,146).value=float(x[col].sum()); ws.cell(i,147).value=float(dm.loc[date,"planned_cost"] if sheet=="计划购电量" else dm.loc[date,"total_cost"])
     ws=wb["充放电量"]
     intervals=["0:00-4:00","4:00-8:00","8:00-12:00","12:00-16:00","16:00-20:00","20:00-24:00"]
