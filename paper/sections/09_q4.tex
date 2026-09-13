@@ -1,6 +1,9 @@
 % ============================================================
 \section{问题四的求解}
 
+\subsection{问题四的分析}
+问题四将固定分时电价改为随日期与时段波动的实际电价，要求重新求解问题二、三；决策时当天电价尚未完全获知，预测误差不仅影响日内购电与充放电时机，还会通过日末储电量传递至后续日期。基于此，本文先比较电价预测方案、以完全已知电价作对照检验预测误差对费用的影响；再针对固定终端惩罚难以适应未来供需与电价变化的局限，构造期末储能价值函数并嵌入日前计划与日内滚动调整，评价跨日储能配置的经济性。
+
 \subsection{电价预测方案的选择}
 \label{sec:q4-forecast}
 \subsubsection{候选方案与误差比较}
@@ -294,10 +297,6 @@ $$
     \hline
     20:30--20:40 & 119.44 & \multicolumn{2}{c|}{（当日无紧急购电）} & 18:20--18:40 & 3.91 & \multicolumn{2}{c|}{（当日无紧急购电）} \\
     \hline
-    \multicolumn{2}{|c|}{全天紧急购电量(kWh)} & \multicolumn{2}{c|}{全天紧急购电量(kWh)} & \multicolumn{2}{c|}{全天紧急购电量(kWh)} & \multicolumn{2}{c|}{全天紧急购电量(kWh)} \\
-    \hline
-    \multicolumn{2}{|c|}{119.44} & \multicolumn{2}{c|}{0.00} & \multicolumn{2}{c|}{3.91} & \multicolumn{2}{c|}{0.00} \\
-    \hline
   \end{tabular}
 \end{table}
 
@@ -320,10 +319,6 @@ $$
     21:30--22:10 & 10.36 & & & 20:30--20:40 & 163.75 & 20:30--20:40 & 78.48 \\
     \hline
     & & & & 20:50--22:00 & 147.97 & & \\
-    \hline
-    \multicolumn{2}{|c|}{全天紧急购电量(kWh)} & \multicolumn{2}{c|}{全天紧急购电量(kWh)} & \multicolumn{2}{c|}{全天紧急购电量(kWh)} & \multicolumn{2}{c|}{全天紧急购电量(kWh)} \\
-    \hline
-    \multicolumn{2}{|c|}{1{,}168.95} & \multicolumn{2}{c|}{126.88} & \multicolumn{2}{c|}{596.91} & \multicolumn{2}{c|}{437.55} \\
     \hline
   \end{tabular}
 \end{table}
