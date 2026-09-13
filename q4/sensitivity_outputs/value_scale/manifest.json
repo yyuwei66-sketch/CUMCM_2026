@@ -1,0 +1,30 @@
+{
+  "period": [
+    "2025-09-01",
+    "2025-12-31"
+  ],
+  "days": 122,
+  "config": {
+    "kind": "quadratic",
+    "feature": "pca",
+    "components": 5,
+    "alpha": 10.0
+  },
+  "gammas": [
+    0.0,
+    0.5,
+    0.75,
+    0.9,
+    1.0,
+    1.1,
+    1.25,
+    1.5
+  ],
+  "fixed_lambda": 0.45,
+  "target_kwh": 6000.0,
+  "risk_quantile": 0.85,
+  "initial_storage_kwh": 6000.0,
+  "data_key": "6f95114295ac2312cda0943debde3e074e8ca15f32b952bb7de1dddd4841f855",
+  "core_sha256": "e9625fb028dd3baf7b766a55dea75749e68808aad20f84149a3a43eee3059df4",
+  "scope": "Q4-2 frozen value-model sensitivity; no gamma reselection"
+}
