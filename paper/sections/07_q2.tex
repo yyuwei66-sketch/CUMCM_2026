@@ -65,7 +65,9 @@
 净负荷预测模型待定的超参数包括滚动训练窗口 $W$、PCA主成分数 $K_L,K_P$、负荷与光伏各自的历史状态构造 $\bm h_d^L,\bm h_d^P$、日历特征 $\bm C_d^L,\bm C_d^P$，以及岭回归正则化系数 $\alpha_L,\alpha_P$。这些超参数之间存在相互影响，因此不能逐个孤立调参，而应在统一的验证区间内联合搜索。
 
 本文以2025年5月1日至8月31日作为公共验证区间，对$W\in\{30,60,90,120\},\quad K_L\in\{1,\ldots,5\},\quad K_P\in\{1,\ldots,4\},$
-以及历史状态、日历特征、$\alpha_L,\alpha_P$ 的候选集合做联合网格搜索，以验证区间净负荷（负荷预测减光伏预测）的均方根误差（RMSE）为选择标准，取$RMSE$最小的组合作为最终结构。四个候选窗口下各自联合最优的验证集Net RMSE分别为：$W=30$时399.780 kW，$W=60$时\textbf{392.623 kW}，$W=90$时394.627 kW，$W=120$时392.938 kW；其中 $W=60$ 取得全局最小值，最终选定的参数相应模型结构汇总于表\ref{tab:q2-final-params}。
+以及历史状态、日历特征、$\alpha_L,\alpha_P$ 的候选集合做联合网格搜索，
+以验证区间净负荷（负荷预测减光伏预测）的均方根误差（RMSE）为选择标准，取$RMSE$最小的组合作为最终结构。
+其中 $W=60$ 时取得全局最小值，最终选定的参数相应模型结构汇总于表\ref{tab:q2-final-params}。
 
 \begin{table}[H]
   \centering
@@ -98,12 +100,12 @@
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.48\linewidth]{figures/q2/01_W_profile.png}
-  \includegraphics[width=0.48\linewidth]{figures/q2/02_KL_profile.png}\\[2pt]
-  \includegraphics[width=0.48\linewidth]{figures/q2/03_KP_profile.png}
-  \includegraphics[width=0.48\linewidth]{figures/q2/08_alphaL_profile.png}\\[2pt]
-  \includegraphics[width=0.48\linewidth]{figures/q2/09_alphaP_profile.png}
-  \includegraphics[width=0.48\linewidth]{figures/q2/04_hL_profile.png}
+  \includegraphics[width=0.42\linewidth]{figures/q2/01_W_profile.png}
+  \includegraphics[width=0.42\linewidth]{figures/q2/02_KL_profile.png}\\[2pt]
+  \includegraphics[width=0.42\linewidth]{figures/q2/03_KP_profile.png}
+  \includegraphics[width=0.42\linewidth]{figures/q2/08_alphaL_profile.png}\\[2pt]
+  \includegraphics[width=0.42\linewidth]{figures/q2/09_alphaP_profile.png}
+  \includegraphics[width=0.42\linewidth]{figures/q2/04_hL_profile.png}
   \caption{部分超参数的剖面稳定性曲线（窗口$W$、主成分数$K_L,K_P$、正则化系数$\alpha_L,\alpha_P$、负荷历史状态$h_L$）}
   \label{fig:q2-profile}
 \end{figure}
