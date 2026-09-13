@@ -20,8 +20,7 @@ ROOT = Path(__file__).resolve().parent
 DT = 1.0 / 6.0
 CFG = {
     "eta_c": 0.9, "eta_d": 0.9, "emin": 1200.0, "emax": 10800.0,
-    "e0": 6000.0, "eterm": 6000.0, "pmax_c": 5000.0, "pmax_d": 5000.0,
-    "terminal_penalty": 0.45,
+    "e0": 6000.0, "pmax_c": 5000.0, "pmax_d": 5000.0,
     "emergency": 5.0, "up": 1.5, "down": 0.5, "history_days": 28,
     "half_life": 14.0, "error_scale": 0.25,
     "tol": 1e-6,
@@ -89,10 +88,10 @@ def q2_forecast(dates, load, pv):
     import sys
     sys.path.insert(0, str(ROOT))
     from q2 import forecast_scenarios
-    pred_load, _, _ = forecast_scenarios(dates, load, pv)
+    pred_load, _, _, next_day_scenarios = forecast_scenarios(dates, load, pv)
     first = 14
     require(np.isfinite(pred_load[first:]).all(), "Q2负载预测无效")
-    return pred_load, first
+    return pred_load, first, next_day_scenarios
 
 
 def scenario_history(day, start, pred_load, forecast, load, pv, first, weighted=False):
@@ -145,15 +144,36 @@ def baseline2_deterministic_scenario(day, hour, pred_load, forecast, load, first
     return ((load_center - pv_center) * DT)[None, :], np.ones(1)
 
 
-def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights=None):
+def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False,
+                  weights=None, reserve_target_kwh=None,
+                  reserve_kappa_yuan_per_kwh2=0.0):
+    from q2 import RESERVE
+
     a, p = np.asarray(a, float), np.asarray(p, float)
     s, n = a.shape
     h0, u0, v0 = 4*n + 1, 4*n + 1 + s*n, 4*n + 1 + s*n + n
-    dev_plus, dev_minus = v0 + n, v0 + n + 1
-    m = dev_minus + 1
+    terminal_start = v0 + n if fixed is not None else v0
+    if reserve_target_kwh is None:
+        dev_plus, dev_minus = terminal_start, terminal_start + 1
+        shortfall = segment_start = None
+        m = dev_minus + 1
+    else:
+        require(reserve_kappa_yuan_per_kwh2 > 0, "动态备用惩罚系数必须为正")
+        require(RESERVE["min_target_kwh"] <= reserve_target_kwh <=
+                RESERVE["max_target_kwh"], "动态备用目标越界")
+        dev_plus = dev_minus = None
+        shortfall, segment_start = terminal_start, terminal_start + 1
+        m = segment_start + 4
     obj = np.zeros(m)
     if fixed is None: obj[:n] = p
-    obj[dev_plus] = obj[dev_minus] = CFG["terminal_penalty"]
+    if reserve_target_kwh is None:
+        obj[dev_plus] = obj[dev_minus] = 0.45
+    else:
+        breakpoints = np.asarray(RESERVE["breakpoints_kwh"])
+        slopes = reserve_kappa_yuan_per_kwh2 * (
+            breakpoints[:-1] + breakpoints[1:]
+        )
+        obj[segment_start:segment_start + 4] = slopes
     if weights is None:
         weights = np.full(s, 1 / s)
     weights = np.asarray(weights, float)
@@ -164,6 +184,10 @@ def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights
     lo[2*n:3*n], hi[2*n:3*n] = 0, CFG["pmax_d"] * DT
     lo[3*n:4*n+1], hi[3*n:4*n+1] = CFG["emin"], CFG["emax"]
     lo[3*n] = hi[3*n] = initial
+    if reserve_target_kwh is not None:
+        lo[shortfall:] = 0.0
+        hi[shortfall:shortfall + 1] = np.inf
+        hi[segment_start:segment_start + 4] = np.diff(breakpoints)
     t = np.arange(n)
     eq = coo_matrix((np.r_[-CFG["eta_c"]*np.ones(n), np.ones(n)/CFG["eta_d"], -np.ones(n), np.ones(n)],
                      (np.tile(t, 4), np.r_[n+t, 2*n+t, 3*n+t, 3*n+t+1])), shape=(n, m)).tocsr()
@@ -172,20 +196,37 @@ def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights
         ge = coo_matrix((np.r_[np.ones(n), -np.ones(n), np.ones(n)],
                          (np.r_[t, t, t], np.r_[t, u0+t, v0+t])), shape=(n, m)).tocsr()
         eq, eq_rhs = vstack([eq, ge]).tocsr(), np.r_[np.zeros(n), baseline_plan]
-        obj[u0:v0], obj[v0:dev_plus] = CFG["up"] * p, CFG["down"] * p
+        obj[u0:v0] = CFG["up"] * p
+        obj[v0:terminal_start] = CFG["down"] * p
         if lock_from is not None: lo[lock_from:n] = hi[lock_from:n] = baseline_plan[lock_from:]
     else: eq_rhs = np.zeros(n)
-    # E_terminal - target = dev_plus - dev_minus.
-    terminal_row = coo_matrix((np.array([1.0, -1.0, 1.0]),
-                               (np.array([0, 0, 0]),
-                                np.array([4*n, dev_plus, dev_minus]))),
-                              shape=(1, m)).tocsr()
+    if reserve_target_kwh is None:
+        # E_terminal - target = dev_plus - dev_minus.
+        terminal_row = coo_matrix((np.array([1.0, -1.0, 1.0]),
+                                   (np.array([0, 0, 0]),
+                                    np.array([4*n, dev_plus, dev_minus]))),
+                                  shape=(1, m)).tocsr()
+    else:
+        # shortfall = sum(segment_k); E_terminal + shortfall >= R_d.
+        terminal_row = coo_matrix((
+            np.r_[1.0, -np.ones(4)],
+            (np.zeros(5, dtype=int),
+             np.r_[shortfall, np.arange(segment_start, segment_start + 4)])),
+            shape=(1, m),
+        ).tocsr()
     eq = vstack([eq, terminal_row]).tocsr()
-    eq_rhs = np.r_[eq_rhs, CFG["eterm"]]
+    eq_rhs = np.r_[eq_rhs, 0.0 if reserve_target_kwh is not None else 6000.0]
     rows = np.arange(s*n)
     ub = coo_matrix((np.r_[-np.ones(s*n), np.ones(s*n), -np.ones(s*n), -np.ones(s*n)],
                      (np.tile(rows, 4), np.r_[np.tile(t, s), n+np.tile(t, s), 2*n+np.tile(t, s), h0+rows])), shape=(s*n, m)).tocsr()
     ub_rhs = -a.ravel()
+    if reserve_target_kwh is not None:
+        reserve_row = coo_matrix((
+            np.array([-1.0, -1.0]),
+            (np.zeros(2, dtype=int), np.array([4*n, shortfall])),
+        ), shape=(1, m)).tocsr()
+        ub = vstack([ub, reserve_row]).tocsr()
+        ub_rhs = np.r_[ub_rhs, -float(reserve_target_kwh)]
     if risk and fixed is None:
         # A compact CVaR penalty on scenario emergency purchase.
         pass
@@ -204,8 +245,28 @@ def solve_problem(a, p, initial, fixed=None, lock_from=None, risk=False, weights
                     options={"mip_rel_gap": 1e-8})
         require(res2.success, "MILP求解失败: " + res2.message)
         x, solver = res2.x[:m], "MILP"
-    return {"grid": np.maximum(x[:n], 0), "charge": np.maximum(x[n:2*n], 0),
-            "discharge": np.maximum(x[2*n:3*n], 0), "storage": x[3*n:4*n+1], "solver": solver}
+    output = {
+        "grid": np.maximum(x[:n], 0),
+        "charge": np.maximum(x[n:2*n], 0),
+        "discharge": np.maximum(x[2*n:3*n], 0),
+        "storage": x[3*n:4*n+1],
+        "solver": solver,
+    }
+    if reserve_target_kwh is not None:
+        segments = x[segment_start:segment_start + 4]
+        output.update({
+            "reserve_target_kwh": float(reserve_target_kwh),
+            "terminal_shortfall_kwh": float(x[shortfall]),
+            "terminal_risk_penalty_yuan": float(slopes @ segments),
+            "terminal_segments_kwh": segments,
+        })
+    else:
+        output.update({
+            "reserve_target_kwh": None,
+            "terminal_shortfall_kwh": 0.0,
+            "terminal_risk_penalty_yuan": 0.0,
+        })
+    return output
 
 
 def execute(grid, load, pv, state, battery=True):
@@ -222,8 +283,12 @@ def execute(grid, load, pv, state, battery=True):
     return c, d, h, u, e
 
 
-def run_strategy(name, kind, dates, load, pv, prices, forecasts, pred_load, first):
+def run_strategy(name, kind, dates, load, pv, prices, forecasts, pred_load, first,
+                 next_day_scenarios):
+    import q2
+
     state = CFG["e0"]; daily=[]; details=[]; decisions=[]
+    risk_by_day = q2.reserve_risk_by_day(next_day_scenarios, prices, 0.85)
     update_hours = {
         "baseline1_fixed": (),
         "baseline2_6h": (6,),
@@ -233,10 +298,20 @@ def run_strategy(name, kind, dates, load, pv, prices, forecasts, pred_load, firs
         "probabilistic": (6, 12, 18),
     }[kind]
     for k, day in enumerate(dates):
+        history = [risk_by_day[j] for j in sorted(risk_by_day) if j < k]
+        current_risk = risk_by_day.get(k, history[-1] if history else 0.0)
+        reserve_target, risk_score, risk_median, risk_mad = q2.compute_reserve_target(
+            current_risk, history
+        )
         # 公平比较：三种策略共享完全相同的00:00确定性初始计划。
         # 历史误差情景仅用于主模型在06:00、12:00的日内更新。
         baseline_plan_scenarios, baseline_plan_weights = baseline2_deterministic_scenario(k, 0, pred_load, forecasts, load, first)
-        baseline_plan = np.zeros(144) if k == 0 else solve_problem(baseline_plan_scenarios, prices, state, risk=(kind == "probabilistic"), weights=baseline_plan_weights)["grid"]
+        baseline_plan = np.zeros(144) if k == 0 else solve_problem(
+            baseline_plan_scenarios, prices, state,
+            risk=(kind == "probabilistic"), weights=baseline_plan_weights,
+            reserve_target_kwh=reserve_target,
+            reserve_kappa_yuan_per_kwh2=q2.RESERVE["kappa_yuan_per_kwh2"],
+        )["grid"]
         updated = baseline_plan.copy(); blocks=[]; day_start=state
         for hour in (0, 6, 12, 18):
             start, end = hour*6, min(144, hour*6+36)
@@ -246,7 +321,12 @@ def run_strategy(name, kind, dates, load, pv, prices, forecasts, pred_load, firs
                     a, w = baseline2_deterministic_scenario(k, hour, pred_load, forecasts, load, first)
                 else:
                     a, w = issue_scenarios(k, hour, pred_load, forecasts, load, pv, first, True)
-                cand = solve_problem(a, prices[start:], state, fixed=baseline_plan[start:], lock_from=36, risk=(kind == "probabilistic"), weights=w)["grid"]
+                cand = solve_problem(
+                    a, prices[start:], state, fixed=baseline_plan[start:],
+                    lock_from=36, risk=(kind == "probabilistic"), weights=w,
+                    reserve_target_kwh=reserve_target,
+                    reserve_kappa_yuan_per_kwh2=q2.RESERVE["kappa_yuan_per_kwh2"],
+                )["grid"]
                 updated[start:end] = cand[:end-start]
                 decisions.append({"date": str(day.date()), "update_hour": hour, "adjustment_kwh": float(np.abs(cand[:end-start]-baseline_plan[start:end]).sum()), "strategy": name})
             c,d,h,u,e = execute(updated[start:end], load[k,start:end]*DT, pv[k,start:end]*DT, state, battery=(k > 0))
@@ -254,7 +334,7 @@ def run_strategy(name, kind, dates, load, pv, prices, forecasts, pred_load, firs
         c=np.concatenate([x[0] for x in blocks]); d=np.concatenate([x[1] for x in blocks]); h=np.concatenate([x[2] for x in blocks]); u=np.concatenate([x[3] for x in blocks]); es=np.concatenate([x[4][:-1] for x in blocks]); ee=np.concatenate([x[4][1:] for x in blocks])
         adj=prices*(CFG["up"]*np.maximum(updated-baseline_plan,0)+CFG["down"]*np.maximum(baseline_plan-updated,0))
         plan_fee=float(prices@baseline_plan); emergency_fee=float(CFG["emergency"]*(prices@h)); total=plan_fee+float(adj.sum())+emergency_fee
-        daily.append({"strategy":name,"date":str(day.date()),"planned_kwh":float(baseline_plan.sum()),"updated_kwh":float(updated.sum()),"increase_kwh":float(np.maximum(updated-baseline_plan,0).sum()),"decrease_kwh":float(np.maximum(baseline_plan-updated,0).sum()),"emergency_kwh":float(h.sum()),"unused_kwh":float(u.sum()),"planned_cost":plan_fee,"adjustment_cost":float(adj.sum()),"emergency_cost":emergency_fee,"total_cost":total,"state_start":day_start,"state_end":state,"emergency":bool(h.sum()>1e-6)})
+        daily.append({"strategy":name,"date":str(day.date()),"planned_kwh":float(baseline_plan.sum()),"updated_kwh":float(updated.sum()),"increase_kwh":float(np.maximum(updated-baseline_plan,0).sum()),"decrease_kwh":float(np.maximum(baseline_plan-updated,0).sum()),"emergency_kwh":float(h.sum()),"unused_kwh":float(u.sum()),"planned_cost":plan_fee,"adjustment_cost":float(adj.sum()),"emergency_cost":emergency_fee,"total_cost":total,"state_start":day_start,"state_end":state,"emergency":bool(h.sum()>1e-6),"reserve_target_kwh":reserve_target,"risk_energy_kwh":current_risk,"risk_score":risk_score,"risk_baseline_median_kwh":risk_median,"risk_baseline_mad_kwh":risk_mad})
         for t in range(144):
             details.append({"strategy":name,"date":str(day.date()),"slot":t+1,"price":prices[t],"actual_load_kwh":load[k,t]*DT,"actual_pv_kwh":pv[k,t]*DT,"planned_grid_kwh":baseline_plan[t],"updated_grid_kwh":updated[t],"charge_kwh":c[t],"discharge_kwh":d[t],"emergency_kwh":h[t],"unused_kwh":u[t],"storage_start_kwh":es[t],"storage_end_kwh":ee[t],"planned_cost":prices[t]*baseline_plan[t],"adjustment_cost":adj[t],"emergency_cost":CFG["emergency"]*prices[t]*h[t]})
     return pd.DataFrame(daily), pd.DataFrame(details), pd.DataFrame(decisions)
@@ -306,7 +386,7 @@ def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--excel",type=Path,default=ROOT/"results"/"result3.xlsx")
     args=ap.parse_args(); t=time.perf_counter()
     dates,load,pv,prices,forecasts=read_inputs(ROOT/"Data/附件2.xlsx",ROOT/"Data/附件1.xlsx",ROOT/"Data/附件3.xlsx")
-    pred_load,first=q2_forecast(dates,load,pv)
+    pred_load,first,next_day_scenarios=q2_forecast(dates,load,pv)
     strategies={
         "Baseline1：00时固定计划":"baseline1_fixed",
         "Baseline2：06时确定性更新":"baseline2_6h",
@@ -316,13 +396,13 @@ def main():
     }
     result={}
     for name,kind in strategies.items():
-        result[name]=run_strategy(name,kind,dates,load,pv,prices,forecasts,pred_load,first)
+        result[name]=run_strategy(name,kind,dates,load,pv,prices,forecasts,pred_load,first,next_day_scenarios)
     chosen=result["主模型：概率风险更新"]
     export_result3(ROOT/"Data/附件5/result3.xlsx", args.excel, chosen[0], chosen[1])
     summary=[]
     for name,(d,x,_) in result.items():
         y=d[d.date>=str(EVAL_START)]; summary.append({"strategy":name,"total_cost":float(y.total_cost.sum()),"emergency_kwh":float(y.emergency_kwh.sum()),"check":verify(x)})
-    report={"status":"PASS","result3":str(args.excel.resolve()),"parameters":{"history_days":CFG["history_days"],"half_life":CFG["half_life"],"error_scale":CFG["error_scale"],"terminal_target_kwh":CFG["eterm"],"terminal_penalty_yuan_per_kwh":CFG["terminal_penalty"]},"summary":summary,"seconds":round(time.perf_counter()-t,2)}
+    report={"status":"PASS","result3":str(args.excel.resolve()),"parameters":{"reserve_window_days":28,"reserve_base_target_kwh":1950.0,"reserve_beta_kwh":800.0,"reserve_min_target_kwh":1800.0,"reserve_max_target_kwh":6000.0,"reserve_kappa_yuan_per_kwh2":2.25e-4,"reserve_quantile":0.85},"summary":summary,"seconds":round(time.perf_counter()-t,2)}
     print(json.dumps(report,ensure_ascii=False,indent=2))
 
 if __name__=="__main__": main()
