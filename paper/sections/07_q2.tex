@@ -7,7 +7,7 @@
 \subsection{净负荷预测模型}
 
 \subsubsection{PCA日曲线降维}
-为避免超参数选择与模型评价相互污染，本文将2025年全年数据划分为三段：1月1日至4月30日作为最初的滚动训练历史；5月1日至8月31日作为公共验证区间；9月1日至12月31日作为独立测试区间。
+主成分分析（PCA）已被用于提取负荷曲线的共同形态并降低预测维数\cite{ref_pca_load}。为避免超参数选择与模型评价相互污染，本文将2025年全年数据划分为三段：1月1日至4月30日作为最初的滚动训练历史；5月1日至8月31日作为公共验证区间；9月1日至12月31日作为独立测试区间。
 
 设预测第$d$天时，模型仅使用此前至多$W$天的历史负荷曲线，按行堆叠为负荷矩阵 $\mathbf{L}\in\mathbb{R}^{W\times144}$（每行是一天的144点曲线），光伏曲线矩阵 $\mathbf{P}\in\mathbb{R}^{W\times144}$ 同理构造。以负荷为例，调用NumPy的\texttt{linalg.svd}，对中心化后的 $\mathbf L$ 做奇异值分解，并取其中方差解释率最高的前 $K_L$ 个主成分，得到平均日曲线 $\bm\mu_L\in\mathbb{R}^{144}$ 与主成分基底 $\bm\Phi_L\in\mathbb{R}^{K_L\times144}$。光伏的 $\bm\mu_P,\bm\Phi_P$ 由 $\mathbf P$ 按同样方式求出，$K_P$ 为其保留的主成分个数。
 
@@ -35,7 +35,7 @@
 \begin{equation}
 \bm x_d^L=[\bm C_d^L,\bm h_d^L],\qquad \bm x_d^P=[\bm C_d^P,\bm h_d^P].
 \end{equation}
-负荷与光伏的历史状态和日历特征相互独立设计，不强制共享同一输入，因为二者的可预测结构本身不同。将输入标准化后代入岭回归，即以正则化系数 $\alpha_L,\alpha_P$ 分别求解
+负荷与光伏的历史状态和日历特征相互独立设计，不强制共享同一输入，因为二者的可预测结构本身不同。将输入标准化后代入岭回归\cite{ref_ridge}，即以正则化系数 $\alpha_L,\alpha_P$ 分别求解
 \begin{equation}
 \widehat{\bm s}_d^L=f_L(\bm x_d^L)=\bm x_d^L\widehat{\bm\beta}_L,\qquad
 \widehat{\bm\beta}_L=\arg\min_{\bm\beta}\left\|\mathbf X_L\bm\beta-\mathbf S_L\right\|_2^2+\alpha_L\|\bm\beta\|_2^2,
@@ -150,7 +150,7 @@ $\mathrm{Profile}_j(v)=\min_{\bm\theta_{-j}}\mathrm{RMSE}_{\mathrm{net}}(v,\bm\t
 
 \subsubsection{预测区间样本外覆盖检验}
 \label{sec:q2-calibration}
-将\ref{sec:q2-scenario}节的经验区间直接搬到独立测试区间作补充覆盖检验，结果出现系统性欠覆盖：80\%区间实际覆盖率仅76.59\%，90\%区间实际覆盖率仅85.85\%，均明显低于名义水平；而采用仅用验证区间选定的 $M=14$ 对区间进行滚动共形校准后，独立测试区间的覆盖率检验结果见表\ref{tab:q2-coverage}。
+将\ref{sec:q2-scenario}节的经验区间直接搬到独立测试区间作补充覆盖检验，结果出现系统性欠覆盖：80\%区间实际覆盖率仅76.59\%，90\%区间实际覆盖率仅85.85\%，均明显低于名义水平；而采用仅用验证区间选定的 $M=14$ 对区间进行滚动共形校准\cite{ref_conformal}后，独立测试区间的覆盖率检验结果见表\ref{tab:q2-coverage}。
 
 \begin{table}[H]
   \centering
