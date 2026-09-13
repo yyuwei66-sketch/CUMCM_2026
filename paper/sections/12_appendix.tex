@@ -829,7 +829,47 @@ w_t=0,\qquad t=1,\ldots,144.
   \end{tabular}
 \end{table}
 
-问题四四个指定日期的紧急购电明细见正文表\ref{tab:q4-2-specific-emergency}、表\ref{tab:q4-3-specific-emergency}；问题四的全年逐时段计划购电量、调整购电量、储能充放电量与紧急购电明细分别收录于\texttt{result4-2.xlsx}（问题二框架）与\texttt{result4-3.xlsx}（问题三框架）。
+\begin{table}[H]
+  \centering
+  \caption{问题二框架：微网在指定日期的紧急购电量}
+  \label{tab:q4-2-specific-emergency}
+  \tiny
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|c|c|c|c|c|c|c|c|}
+    \hline
+    \multicolumn{2}{|c|}{2025.3.20} & \multicolumn{2}{c|}{2025.6.21} & \multicolumn{2}{c|}{2025.9.23} & \multicolumn{2}{c|}{2025.12.21} \\
+    \hline
+    时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) \\
+    \hline
+    20:30--20:40 & 119.44 & \multicolumn{2}{c|}{（当日无紧急购电）} & 18:20--18:40 & 3.91 & \multicolumn{2}{c|}{（当日无紧急购电）} \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{问题三框架：微网在指定日期的紧急购电量}
+  \label{tab:q4-3-specific-emergency}
+  \tiny
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|c|c|c|c|c|c|c|c|}
+    \hline
+    \multicolumn{2}{|c|}{2025.3.20} & \multicolumn{2}{c|}{2025.6.21} & \multicolumn{2}{c|}{2025.9.23} & \multicolumn{2}{c|}{2025.12.21} \\
+    \hline
+    时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) & 时间段 & 购电量(kWh) \\
+    \hline
+    8:40--10:00 & 1{,}027.14 & 2:10--2:30 & 126.88 & 8:50--9:50 & 281.28 & 7:50--8:10 & 19.85 \\
+    \hline
+    20:30--20:40 & 131.45 & & & 18:20--18:40 & 3.91 & 10:30--10:50 & 339.21 \\
+    \hline
+    21:30--22:10 & 10.36 & & & 20:30--20:40 & 163.75 & 20:30--20:40 & 78.48 \\
+    \hline
+    & & & & 20:50--22:00 & 147.97 & & \\
+    \hline
+  \end{tabular}
+\end{table}
+
+问题四四个指定日期的紧急购电明细见上表；问题四的全年逐时段计划购电量、调整购电量、储能充放电量与紧急购电明细分别收录于\texttt{result4-2.xlsx}（问题二框架）与\texttt{result4-3.xlsx}（问题三框架）。
 
 \section*{附录C\quad 代码}
 
