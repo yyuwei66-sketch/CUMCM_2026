@@ -36,6 +36,7 @@ TOL = 1e-5
 # The terminal-value experiment used an isolated solver environment.  Use it
 # when available, while retaining the exact LP fallback for ordinary setups.
 for _dep in (
+    ROOT.parent.parent / "CUMCM_2026" / ".tmp" / "q4_terminal_value" / "deps",
     ROOT.parent / "CUMCM_2026" / ".tmp" / "q4_terminal_value" / "deps",
     ROOT / ".tmp" / "q4_terminal_value" / "deps",
 ):
@@ -324,7 +325,7 @@ def read_all_inputs():
         ROOT / "Data" / "附件3.xlsx",
     )
     _, prices = read_prices(ROOT / "Data" / "附件4.xlsx")
-    pred_load, pred_pv, scenarios = q2.forecast_scenarios(dates, load, pv)
+    pred_load, pred_pv, scenarios, _ = q2.forecast_scenarios(dates, load, pv)
     return dates, load, pv, fixed_prices, prices, forecasts, pred_load, pred_pv, scenarios
 
 
