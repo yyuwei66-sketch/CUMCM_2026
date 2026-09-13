@@ -93,9 +93,7 @@
 \end{table}
 
 仅报告联合搜索得到的单一最优组合并不足以说明模型选择可靠，还需要检验：固定某一参数后，其余参数重新寻优仍能达到的最好性能，与全局最优相比下降多少。为此，本文对每个超参数 $\theta_j$ 的候选取值 $v$ 定义剖面（profile）
-\begin{equation}
-\mathrm{Profile}_j(v)=\min_{\bm\theta_{-j}}\mathrm{RMSE}_{\mathrm{net}}(v,\bm\theta_{-j}),
-\end{equation}
+$\mathrm{Profile}_j(v)=\min_{\bm\theta_{-j}}\mathrm{RMSE}_{\mathrm{net}}(v,\bm\theta_{-j})$,
 即固定 $\theta_j=v$、其余参数各自重新取最优值后可达到的验证集净负荷RMSE。
 
 \begin{figure}[H]
