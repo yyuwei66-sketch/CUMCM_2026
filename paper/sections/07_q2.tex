@@ -112,39 +112,6 @@
 
 综合来看，最终参数组合虽然仅是网格搜索下的数值最优，但净负荷预测精度对多数超参数的具体取值并不敏感，模型结构具有较好的稳健性。
 
-\subsubsection{预测区间的补充校准与覆盖检验}
-\label{sec:q2-calib-tuning}
-除中心预测外，本文还对\ref{sec:q2-scenario}节由残差重采样得到的经验区间进行补充覆盖分析。该校准只用于评价区间的经验覆盖特性，不改变正式调度所使用的残差场景和风险分位数；校准窗口仅在验证区间内选择，不触碰独立测试区间。仅用有限历史残差的经验分位数构造区间，理论上容易低估未来的不确定性，因此在补充检验中引入滚动共形校准（rolling conformal calibration）加以修正。对任一历史日 $j$，定义80\%基础区间 $[q_{0.10,j},q_{0.90,j}]$ 相对实现值 $y_j$ 的非一致性分数
-\begin{equation}
-r^{80}_{j,t}=\max\{q_{0.10,j,t}-y_{j,t},\ y_{j,t}-q_{0.90,j,t},\ 0\},
-\end{equation}
-其含义为实现值落在基础区间之外的越界幅度，若落在区间内则为0。预测第$d$天时，仅使用此前最近 $M$ 天已实现的非一致性分数，取其经验分位数 $\hat q_{80}$，将区间对称扩张为
-\begin{equation}
-[q_{0.10,d}-\hat q_{80},\ q_{0.90,d}+\hat q_{80}],
-\end{equation}
-90\%区间按同样方式构造。由于 $\hat q_{80}$ 仅依赖预测日之前已经实现的误差，该校准过程不引入未来信息，与滚动预测的因果性一致。以校准误差 $|\widehat C_{80}-0.80|+|\widehat C_{90}-0.90|$ 为标准，在验证区间（5月1日至8月31日）比较 $M\in\{14,28,42,60\}$ 后，补充检验取滚动窗口长度 $M=14$；该选择过程与中心预测的超参数搜索一样完全不使用9月至12月的独立测试数据。
-
-\begin{figure}[H]
-  \centering
-  \begin{subfigure}[b]{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{figures/q2/05_top100_plateau.png}
-    \caption{Top100参数组合排序}
-    \label{fig:q2-top100}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}[b]{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{figures/q2/06_W_cross_month.png}
-    \caption{不同$W$的跨月RMSE}
-    \label{fig:q2-w-cross-month}
-  \end{subfigure}
-  \caption{联合网格搜索的低误差平台与窗口$W$的跨月稳定性}
-  \label{fig:q2-search-stability}
-\end{figure}
-
-图\ref{fig:q2-top100}显示，按验证集Net RMSE排序后，前100个参数组合的误差从最优值到第100位的增幅不足0.6\%，进一步佐证了最优参数组合周围存在大范围的低误差平台，而非孤立尖峰。图\ref{fig:q2-w-cross-month}显示，$W=60$在四个月平均RMSE和最差月份RMSE两项指标上均不劣于其余候选窗口，进一步支持了$W=60$取得全局最优这一结论的跨月稳定性；由于剖面分析统一在公共验证区间（2025年5月1日至8月31日）完成，按月份拆分核查后四个月份下 $W=60$ 均取得或接近最优的月度平均RMSE，排除了整体最优仅由某一个月的偶然表现主导的可能。
-
 \subsubsection{独立测试集结果}
 \label{sec:q2-test}
 参数确定后，需要在完全未参与参数选择的独立区间上检验模型的样本外表现，以避免验证集上的参数选择本身带来乐观偏差。本文以2025年9月1日至12月31日作为独立测试区间，重新按滚动方式逐日预测并评价，结果见表\ref{tab:q2-test-metrics}。
