@@ -43,9 +43,8 @@ E_t=E_{t-1}+\eta_c c_t-\frac{d_t}{\eta_d}.
 其中，$1200$、$10800$（kWh）分别为储能容量下限、上限；$M_c,M_d$ 为单时段最大充电电量、最大放电电量，由题面给定的最大充放电功率按时段时长折算得到。
 
 \textbf{约束4：初末储电量相等。}为保证储能在一天结束后恢复初始状态，避免模型通过消耗初始库存低估全天购电费用，要求
-\begin{equation}
-E_0=E_{144}=6000.
-\end{equation}
+$E_0=E_{144}=6000$.
+
 
 \textbf{约束5：充放电互斥。}同一时段不允许储能设备同时充电和放电，为此引入二元变量 $z_t\in\{0,1\}$，令
 \begin{equation}
@@ -134,11 +133,7 @@ $L_t+c_t+w_t-g_t-V_t-d_t=0$，
 \end{equation}
 
 本算例提取的对偶乘子满足
-\begin{equation}
-\min_t\alpha_t=0.3713>0,
-\qquad
-\max_t\alpha_t=1.2561.
-\end{equation}
+$\min_t\alpha_t=0.3713>0,\qquad\max_t\alpha_t=1.2561.$
 原始与对偶目标值之差的绝对值约为
 $7.28\times10^{-12}\,\text{元}$，
 且驻点条件及互补松弛条件的残差均在数值容差内，
@@ -197,20 +192,27 @@ w_t=0,\qquad t=1,\ldots,144.
 \end{table}
 
 图\ref{fig:q1-battery}给出储能电量轨迹与电价的对应关系：储能电量在1200--10800 kWh的边界内连续变化，并在24:00回到初始的6000 kWh；电量在电价较低的凌晨与午间抬升，在早、晚电价较高的时段回落，体现出``低价充、高价放"的整体规律。
+
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.85\linewidth]{figures/q1/fig2_battery_energy_price.png}
-  \caption{电池电量与购电电价对照}
-  \label{fig:q1-battery}
+  \begin{subfigure}[b]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/q1/fig2_battery_energy_price.png}
+    \caption{电池电量与购电电价对照}
+    \label{fig:q1-battery}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/q1/fig3_purchase_cost.png}
+    \caption{逐时段购电花费与当日累计购电花费}
+    \label{fig:q1-cost}
+  \end{subfigure}
+  \caption{问题一储能电量、电价与购电花费的对照}
+  \label{fig:q1-battery-cost}
 \end{figure}
+
 
 图\ref{fig:q1-cost}给出逐时段购电花费与当日累计购电花费的变化。购电支出集中在早、晚电价较高且储能已难以完全覆盖负载缺口的时段，与图\ref{fig:q1-battery}中储能电量的回落区间基本对应；午间购电支出显著偏低，对应光伏富余、储能持续充电的时段。累计曲线在16:00以后加速上升，直观显示了全天购电费用的主要来源集中在晚高峰附近。
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figures/q1/fig3_purchase_cost.png}
-  \caption{逐时段购电花费与当日累计购电花费}
-  \label{fig:q1-cost}
-\end{figure}
 
 综合上文，问题一的优化方案在满足负载不缺供、储能日初日末电量相等的约束下，通过统筹光伏消纳与低价时段充电、高价时段放电，将购电费用较无储能基线降低了26.90\%，验证了将购电与储能调度联合优化为MILP问题的有效性；该建模框架也为后续问题在此基础上引入紧急购电、滚动调整与波动电价等机制提供了基础结构。
